@@ -318,17 +318,15 @@ button:not(#rollBtn):hover {
 
 .mode-btn.active {
   background: transparent;
-  color: var(--accent);
-  border-color: #fff;
-  border-width: 2px;
+  color: #fff !important;
+  border: 3px solid #fff !important;
   font-weight: 700;
 }
 
 .mode-btn.connected {
   background: transparent;
-  border-color: #10b981;
-  color: #10b981;
-  border-width: 2px;
+  border: 3px solid #10b981 !important;
+  color: #10b981 !important;
 }
 
 .disconnect-btn {
@@ -580,8 +578,8 @@ button:not(#rollBtn):hover {
 
 .collateral-btn.active {
   background: transparent;
-  color: var(--accent);
-  border-color: #fff;
+  color: #fff !important;
+  border: 3px solid #fff !important;
 }
 
 /* ───────── Trade Popup Close Button ───────── */
