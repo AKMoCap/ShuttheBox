@@ -5,12 +5,12 @@ const HyperliquidManager = (() => {
   const CONFIG = {
     MAINNET_API: 'https://api.hyperliquid.xyz',
     TESTNET_API: 'https://api.hyperliquid-testnet.xyz',
-    // For user-signed actions (approveAgent, approveBuilderFee), use 421614
-    USER_SIGNED_CHAIN_ID: 421614, // 0x66eee - Hyperliquid user-signed actions
-    USER_SIGNED_CHAIN_ID_HEX: '0x66eee',
-    // For L1 actions (orders), use Arbitrum
-    L1_CHAIN_ID: 42161, // Arbitrum mainnet
-    L1_CHAIN_ID_HEX: '0xa4b1',
+    // Hyperliquid EVM chainId for user-signed actions
+    USER_SIGNED_CHAIN_ID: 999, // 0x3e7 - Hyperliquid EVM chain
+    USER_SIGNED_CHAIN_ID_HEX: '0x3e7',
+    // L1 chainId for order actions on Hyperliquid
+    L1_CHAIN_ID: 999, // Hyperliquid EVM
+    L1_CHAIN_ID_HEX: '0x3e7',
     BUILDER_ADDRESS: '0x7B4497c1B70dE6546B551Bdf8f951Da53B71b97d',
     BUILDER_FEE_BPS: 5, // 5 basis points = 0.05%
     LEVERAGE: 20,
