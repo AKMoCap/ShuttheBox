@@ -7,6 +7,230 @@ document.addEventListener("DOMContentLoaded", () => {
   const winsRef = db.ref("wins");
   const lossesRef = db.ref("losses");
 
+  /* ───────── PerpPlay Mode State ───────── */
+  let playMode = 'free'; // 'free' or 'perpplay'
+  let walletConnected = false;
+  let pendingTrade = false; // prevent multiple trades at once
+
+  // PerpPlay UI elements
+  const freePlayBtn = document.getElementById('freePlayBtn');
+  const perpPlayBtn = document.getElementById('perpPlayBtn');
+  const disconnectBtn = document.getElementById('disconnectBtn');
+  const walletModal = document.getElementById('walletModal');
+  const connectMetamaskBtn = document.getElementById('connectMetamask');
+  const connectRabbyBtn = document.getElementById('connectRabby');
+  const closeWalletModalBtn = document.getElementById('closeWalletModal');
+
+  // Trade popup elements
+  const tradePopup = document.getElementById('tradePopup');
+  const tradeIcon = document.getElementById('tradeIcon');
+  const tradeTitle = document.getElementById('tradeTitle');
+  const tradeToken = document.getElementById('tradeToken');
+  const tradeSide = document.getElementById('tradeSide');
+  const tradeLeverage = document.getElementById('tradeLeverage');
+  const tradeSize = document.getElementById('tradeSize');
+  const tradeEntry = document.getElementById('tradeEntry');
+  const tradeCountdown = document.getElementById('tradeCountdown');
+  const tradeResult = document.getElementById('tradeResult');
+  const tradePnl = document.getElementById('tradePnl');
+
+  /* ───────── PerpPlay Mode Functions ───────── */
+  function updateModeButtons() {
+    if (playMode === 'free') {
+      freePlayBtn.classList.add('active');
+      perpPlayBtn.classList.remove('active');
+      perpPlayBtn.classList.remove('connected');
+      perpPlayBtn.textContent = 'PerpPlay - Connect Wallet';
+      disconnectBtn.style.display = 'none';
+    } else {
+      freePlayBtn.classList.remove('active');
+      perpPlayBtn.classList.add('active');
+      if (walletConnected) {
+        perpPlayBtn.classList.add('connected');
+        perpPlayBtn.textContent = 'Connected - PerpPlay';
+        disconnectBtn.style.display = 'inline-block';
+      }
+    }
+  }
+
+  function showWalletModal() {
+    walletModal.style.display = 'flex';
+  }
+
+  function hideWalletModal() {
+    walletModal.style.display = 'none';
+  }
+
+  async function connectWallet(walletType) {
+    hideWalletModal();
+
+    if (!window.HyperliquidManager) {
+      alert('Hyperliquid integration not loaded. Please refresh the page.');
+      return;
+    }
+
+    perpPlayBtn.textContent = 'Connecting...';
+
+    const result = await window.HyperliquidManager.connectWallet(walletType);
+
+    if (result.success) {
+      walletConnected = true;
+      playMode = 'perpplay';
+      updateModeButtons();
+
+      // Approve builder fee
+      await window.HyperliquidManager.approveBuilderFee();
+
+      console.log('PerpPlay mode activated for wallet:', result.address);
+    } else {
+      alert('Wallet connection failed: ' + result.error);
+      perpPlayBtn.textContent = 'PerpPlay - Connect Wallet';
+    }
+  }
+
+  function disconnectWallet() {
+    if (window.HyperliquidManager) {
+      window.HyperliquidManager.disconnectWallet();
+    }
+    walletConnected = false;
+    playMode = 'free';
+    updateModeButtons();
+  }
+
+  // Trade popup functions
+  function showTradePopup() {
+    tradePopup.style.display = 'block';
+    tradeResult.style.display = 'none';
+    tradeIcon.textContent = '🚀';
+    tradeTitle.textContent = 'Opening Position...';
+  }
+
+  function hideTradePopup() {
+    tradePopup.style.display = 'none';
+  }
+
+  function updateTradePopup(data) {
+    switch (data.phase) {
+      case 'opening':
+        tradeIcon.textContent = '🚀';
+        tradeTitle.textContent = 'Opening Position...';
+        tradeToken.textContent = data.token;
+        tradeSide.textContent = data.side;
+        tradeSide.className = 'trade-value long';
+        tradeLeverage.textContent = data.leverage + 'x';
+        tradeSize.textContent = '-';
+        tradeEntry.textContent = '-';
+        tradeCountdown.textContent = '15';
+        break;
+
+      case 'open':
+        tradeIcon.textContent = '📈';
+        tradeTitle.textContent = 'Position Open!';
+        tradeSize.textContent = data.size.toFixed(6);
+        tradeEntry.textContent = '$' + data.entryPrice.toFixed(2);
+        break;
+
+      case 'countdown':
+        tradeCountdown.textContent = data.secondsRemaining;
+        break;
+
+      case 'closing':
+        tradeIcon.textContent = '⏳';
+        tradeTitle.textContent = 'Closing Position...';
+        break;
+
+      case 'closed':
+        tradeIcon.textContent = data.pnlUsd >= 0 ? '🎉' : '😢';
+        tradeTitle.textContent = data.pnlUsd >= 0 ? 'Profit!' : 'Loss';
+        tradeResult.style.display = 'block';
+        tradePnl.textContent = (data.pnlUsd >= 0 ? '+' : '') + '$' + data.pnlUsd.toFixed(2) + ' (' + (data.pnlPercent >= 0 ? '+' : '') + data.pnlPercent.toFixed(2) + '%)';
+        tradePnl.className = 'trade-value ' + (data.pnlUsd >= 0 ? 'profit' : 'loss');
+
+        // Auto-hide after 3 seconds
+        setTimeout(hideTradePopup, 3000);
+        break;
+
+      case 'error':
+        tradeIcon.textContent = '❌';
+        tradeTitle.textContent = 'Trade Failed';
+        tradeResult.style.display = 'block';
+        tradePnl.textContent = data.error;
+        tradePnl.className = 'trade-value loss';
+        setTimeout(hideTradePopup, 3000);
+        break;
+    }
+  }
+
+  // Execute PerpPlay trade
+  async function executePerpPlayTrade() {
+    if (!walletConnected || playMode !== 'perpplay' || pendingTrade) {
+      return;
+    }
+
+    if (!window.HyperliquidManager) {
+      console.error('HyperliquidManager not available');
+      return;
+    }
+
+    pendingTrade = true;
+    showTradePopup();
+
+    try {
+      await window.HyperliquidManager.executePerpPlayTrade(updateTradePopup);
+    } catch (error) {
+      console.error('Trade execution error:', error);
+      updateTradePopup({ phase: 'error', error: error.message });
+    }
+
+    pendingTrade = false;
+  }
+
+  // Event listeners for PerpPlay mode
+  if (freePlayBtn) {
+    freePlayBtn.addEventListener('click', () => {
+      playMode = 'free';
+      updateModeButtons();
+    });
+  }
+
+  if (perpPlayBtn) {
+    perpPlayBtn.addEventListener('click', () => {
+      if (walletConnected) {
+        // Already connected, just switch mode
+        playMode = 'perpplay';
+        updateModeButtons();
+      } else {
+        // Show wallet connection modal
+        showWalletModal();
+      }
+    });
+  }
+
+  if (disconnectBtn) {
+    disconnectBtn.addEventListener('click', disconnectWallet);
+  }
+
+  if (connectMetamaskBtn) {
+    connectMetamaskBtn.addEventListener('click', () => connectWallet('metamask'));
+  }
+
+  if (connectRabbyBtn) {
+    connectRabbyBtn.addEventListener('click', () => connectWallet('rabby'));
+  }
+
+  if (closeWalletModalBtn) {
+    closeWalletModalBtn.addEventListener('click', hideWalletModal);
+  }
+
+  // Close modal when clicking outside
+  if (walletModal) {
+    walletModal.addEventListener('click', (e) => {
+      if (e.target === walletModal) {
+        hideWalletModal();
+      }
+    });
+  }
+
   const yourWinsEl = document.getElementById("yourWins");
   const yourLossesEl = document.getElementById("yourLosses");
 
@@ -119,6 +343,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let diceTotal = 0,
     awaitingPick = false,
     gameOver = false;
+  let drumrollPlayed = false;
 
   /* desktop cursor (1-based) */
   let cursor = 1;
@@ -236,6 +461,11 @@ document.addEventListener("DOMContentLoaded", () => {
       awaitingPick = false;
       diceResEl.textContent = "✅ Good move!";
       checkWinLose();
+
+      // Trigger PerpPlay trade if in perpplay mode and wallet connected
+      if (playMode === 'perpplay' && walletConnected && !gameOver) {
+        executePerpPlayTrade();
+      }
     }
 
     const remainingCards = 12 - flipped.size;
