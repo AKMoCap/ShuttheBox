@@ -27,12 +27,24 @@
       <button id="rollBtn" class="primary">ROLL</button>
     </div>
 
-    <!-- RIGHT COLUMN: odds then stats -->
+    <!-- RIGHT COLUMN: odds, collateral selector, then stats -->
     <div class="right-container">
       <div id="immediateOddsDisplay">
         <div class="odds-label">Odds to Survive:</div>
         <div class="odds-value"><span id="immediateOdds">…</span></div>
       </div>
+
+      <!-- Collateral selector - only shown in PerpPlay mode -->
+      <div id="collateralSection" class="collateral-section" style="display: none;">
+        <div class="collateral-label">Perp Collateral:</div>
+        <div class="collateral-buttons">
+          <button class="collateral-btn active" data-amount="10">$10</button>
+          <button class="collateral-btn" data-amount="100">$100</button>
+          <button class="collateral-btn" data-amount="500">$500</button>
+          <button class="collateral-btn" data-amount="1000">$1,000</button>
+        </div>
+      </div>
+
       <div id="statsSection">
         <table>
           <tr>
@@ -97,6 +109,7 @@
   <!-- Trade popup for PerpPlay mode -->
   <div id="tradePopup" class="trade-popup" style="display: none;">
     <div class="trade-popup-content">
+      <button id="closeTradePopup" class="close-trade-btn" style="display: none;">✕</button>
       <div class="trade-header">
         <span id="tradeIcon">🚀</span>
         <span id="tradeTitle">Opening Position...</span>
@@ -113,6 +126,10 @@
         <div class="trade-row">
           <span class="trade-label">Leverage:</span>
           <span id="tradeLeverage" class="trade-value">20x</span>
+        </div>
+        <div class="trade-row">
+          <span class="trade-label">Collateral:</span>
+          <span id="tradeCollateral" class="trade-value">-</span>
         </div>
         <div class="trade-row">
           <span class="trade-label">Size:</span>
@@ -133,6 +150,7 @@
           <span class="trade-label">PnL:</span>
           <span id="tradePnl" class="trade-value">-</span>
         </div>
+        <div class="trade-close-hint">Press SPACE or click ✕ to close</div>
       </div>
     </div>
   </div>

@@ -372,7 +372,7 @@ const HyperliquidManager = (() => {
   };
 
   // Open a long position
-  const openLongPosition = async (token, sizeUsd = 100) => {
+  const openLongPosition = async (token, collateralUsd = 10) => {
     if (!isConnected || !agentWallet) {
       throw new Error('Wallet not connected or agent not setup');
     }
@@ -383,7 +383,20 @@ const HyperliquidManager = (() => {
 
       // Calculate position size
       const markPrice = token.markPrice;
-      const leverage = Math.min(CONFIG.LEVERAGE, token.maxLeverage || 50);
+      const maxLev = token.maxLeverage || 50;
+
+      // Use 20x if available, otherwise use 10x, capped at token's max
+      let leverage;
+      if (maxLev >= 20) {
+        leverage = 20;
+      } else if (maxLev >= 10) {
+        leverage = 10;
+      } else {
+        leverage = maxLev;
+      }
+
+      // Position size = collateral * leverage / price
+      const sizeUsd = collateralUsd * leverage;
 
       // Size in base units (amount of asset to buy)
       const sizeBase = sizeUsd / markPrice;
@@ -443,6 +456,7 @@ const HyperliquidManager = (() => {
         side: 'LONG',
         size: roundedSize,
         leverage: leverage,
+        collateral: collateralUsd,
         entryPrice: markPrice,
         result: result
       };
@@ -526,7 +540,7 @@ const HyperliquidManager = (() => {
   };
 
   // Execute a PerpPlay trade (open long, close after 15s)
-  const executePerpPlayTrade = async (onUpdate) => {
+  const executePerpPlayTrade = async (onUpdate, collateralUsd = 10) => {
     if (!isConnected) {
       return { success: false, error: 'Wallet not connected' };
     }
@@ -535,17 +549,22 @@ const HyperliquidManager = (() => {
       // Get random token from top 25
       const token = getRandomTopToken();
 
+      // Determine actual leverage (20x if available, else 10x)
+      const maxLev = token.maxLeverage || 50;
+      const actualLeverage = maxLev >= 20 ? 20 : (maxLev >= 10 ? 10 : maxLev);
+
       if (onUpdate) {
         onUpdate({
           phase: 'opening',
           token: token.name,
           side: 'LONG',
-          leverage: CONFIG.LEVERAGE
+          leverage: actualLeverage,
+          collateral: collateralUsd
         });
       }
 
       // Open position
-      const openResult = await openLongPosition(token);
+      const openResult = await openLongPosition(token, collateralUsd);
 
       if (!openResult.success) {
         if (onUpdate) {
@@ -565,7 +584,8 @@ const HyperliquidManager = (() => {
           phase: 'open',
           token: token.name,
           side: 'LONG',
-          leverage: CONFIG.LEVERAGE,
+          leverage: openResult.leverage,
+          collateral: collateralUsd,
           size: size,
           entryPrice: entryPrice
         });
@@ -604,14 +624,16 @@ const HyperliquidManager = (() => {
       // Calculate PnL
       const closePrice = closeResult.closePrice || entryPrice;
       const priceDiff = closePrice - entryPrice;
-      const pnlPercent = (priceDiff / entryPrice) * 100 * CONFIG.LEVERAGE;
-      const pnlUsd = (priceDiff * size * CONFIG.LEVERAGE);
+      const leverage = openResult.leverage;
+      const pnlPercent = (priceDiff / entryPrice) * 100 * leverage;
+      const pnlUsd = (priceDiff * size * leverage);
 
       const finalResult = {
         success: closeResult.success,
         token: token.name,
         side: 'LONG',
-        leverage: CONFIG.LEVERAGE,
+        leverage: leverage,
+        collateral: collateralUsd,
         size: size,
         entryPrice: entryPrice,
         closePrice: closePrice,

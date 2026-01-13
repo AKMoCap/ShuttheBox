@@ -11,6 +11,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let playMode = 'free'; // 'free' or 'perpplay'
   let walletConnected = false;
   let pendingTrade = false; // prevent multiple trades at once
+  let selectedCollateral = 10; // default $10
+  let tradePopupCanClose = false; // only allow closing after trade is done
 
   // PerpPlay UI elements
   const freePlayBtn = document.getElementById('freePlayBtn');
@@ -20,6 +22,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const connectMetamaskBtn = document.getElementById('connectMetamask');
   const connectRabbyBtn = document.getElementById('connectRabby');
   const closeWalletModalBtn = document.getElementById('closeWalletModal');
+  const collateralSection = document.getElementById('collateralSection');
+  const collateralBtns = document.querySelectorAll('.collateral-btn');
 
   // Trade popup elements
   const tradePopup = document.getElementById('tradePopup');
@@ -28,11 +32,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const tradeToken = document.getElementById('tradeToken');
   const tradeSide = document.getElementById('tradeSide');
   const tradeLeverage = document.getElementById('tradeLeverage');
+  const tradeCollateral = document.getElementById('tradeCollateral');
   const tradeSize = document.getElementById('tradeSize');
   const tradeEntry = document.getElementById('tradeEntry');
   const tradeCountdown = document.getElementById('tradeCountdown');
   const tradeResult = document.getElementById('tradeResult');
   const tradePnl = document.getElementById('tradePnl');
+  const closeTradePopupBtn = document.getElementById('closeTradePopup');
 
   /* ───────── PerpPlay Mode Functions ───────── */
   function updateModeButtons() {
@@ -42,6 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
       perpPlayBtn.classList.remove('connected');
       perpPlayBtn.textContent = 'PerpPlay - Connect Wallet';
       disconnectBtn.style.display = 'none';
+      if (collateralSection) collateralSection.style.display = 'none';
     } else {
       freePlayBtn.classList.remove('active');
       perpPlayBtn.classList.add('active');
@@ -49,6 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
         perpPlayBtn.classList.add('connected');
         perpPlayBtn.textContent = 'Connected - PerpPlay';
         disconnectBtn.style.display = 'inline-block';
+        if (collateralSection) collateralSection.style.display = 'block';
       }
     }
   }
@@ -103,10 +111,13 @@ document.addEventListener("DOMContentLoaded", () => {
     tradeResult.style.display = 'none';
     tradeIcon.textContent = '🚀';
     tradeTitle.textContent = 'Opening Position...';
+    tradePopupCanClose = false;
+    if (closeTradePopupBtn) closeTradePopupBtn.style.display = 'none';
   }
 
   function hideTradePopup() {
     tradePopup.style.display = 'none';
+    tradePopupCanClose = false;
   }
 
   function updateTradePopup(data) {
@@ -118,6 +129,7 @@ document.addEventListener("DOMContentLoaded", () => {
         tradeSide.textContent = data.side;
         tradeSide.className = 'trade-value long';
         tradeLeverage.textContent = data.leverage + 'x';
+        if (tradeCollateral) tradeCollateral.textContent = '$' + data.collateral;
         tradeSize.textContent = '-';
         tradeEntry.textContent = '-';
         tradeCountdown.textContent = '15';
@@ -128,6 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
         tradeTitle.textContent = 'Position Open!';
         tradeSize.textContent = data.size.toFixed(6);
         tradeEntry.textContent = '$' + data.entryPrice.toFixed(2);
+        if (tradeCollateral) tradeCollateral.textContent = '$' + data.collateral;
         break;
 
       case 'countdown':
@@ -137,6 +150,7 @@ document.addEventListener("DOMContentLoaded", () => {
       case 'closing':
         tradeIcon.textContent = '⏳';
         tradeTitle.textContent = 'Closing Position...';
+        tradeCountdown.textContent = '0';
         break;
 
       case 'closed':
@@ -146,8 +160,9 @@ document.addEventListener("DOMContentLoaded", () => {
         tradePnl.textContent = (data.pnlUsd >= 0 ? '+' : '') + '$' + data.pnlUsd.toFixed(2) + ' (' + (data.pnlPercent >= 0 ? '+' : '') + data.pnlPercent.toFixed(2) + '%)';
         tradePnl.className = 'trade-value ' + (data.pnlUsd >= 0 ? 'profit' : 'loss');
 
-        // Auto-hide after 3 seconds
-        setTimeout(hideTradePopup, 3000);
+        // Show close button and allow closing
+        tradePopupCanClose = true;
+        if (closeTradePopupBtn) closeTradePopupBtn.style.display = 'flex';
         break;
 
       case 'error':
@@ -156,7 +171,10 @@ document.addEventListener("DOMContentLoaded", () => {
         tradeResult.style.display = 'block';
         tradePnl.textContent = data.error;
         tradePnl.className = 'trade-value loss';
-        setTimeout(hideTradePopup, 3000);
+
+        // Show close button and allow closing
+        tradePopupCanClose = true;
+        if (closeTradePopupBtn) closeTradePopupBtn.style.display = 'flex';
         break;
     }
   }
@@ -176,7 +194,7 @@ document.addEventListener("DOMContentLoaded", () => {
     showTradePopup();
 
     try {
-      await window.HyperliquidManager.executePerpPlayTrade(updateTradePopup);
+      await window.HyperliquidManager.executePerpPlayTrade(updateTradePopup, selectedCollateral);
     } catch (error) {
       console.error('Trade execution error:', error);
       updateTradePopup({ phase: 'error', error: error.message });
@@ -230,6 +248,33 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  // Collateral button selection
+  collateralBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      collateralBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedCollateral = parseInt(btn.dataset.amount, 10);
+      console.log('Collateral selected:', selectedCollateral);
+    });
+  });
+
+  // Close trade popup button
+  if (closeTradePopupBtn) {
+    closeTradePopupBtn.addEventListener('click', () => {
+      if (tradePopupCanClose) {
+        hideTradePopup();
+      }
+    });
+  }
+
+  // Spacebar to close trade popup when allowed
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && tradePopupCanClose && tradePopup.style.display !== 'none') {
+      e.preventDefault();
+      hideTradePopup();
+    }
+  });
 
   const yourWinsEl = document.getElementById("yourWins");
   const yourLossesEl = document.getElementById("yourLosses");

@@ -435,15 +435,6 @@ button:not(#rollBtn):hover {
   }
 }
 
-.trade-popup-content {
-  background: linear-gradient(135deg, #0b1624 0%, #1a2a3d 100%);
-  border: 3px solid var(--accent);
-  border-radius: 16px;
-  padding: 24px 32px;
-  min-width: 320px;
-  box-shadow: 0 0 40px rgba(58, 180, 239, 0.4), 0 0 80px rgba(58, 180, 239, 0.2);
-}
-
 .trade-header {
   display: flex;
   align-items: center;
@@ -538,6 +529,91 @@ button:not(#rollBtn):hover {
   color: #ef4444;
 }
 
+/* ───────── Collateral Section ───────── */
+.collateral-section {
+  text-align: center;
+  padding: 12px 0;
+}
+
+.collateral-label {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+.collateral-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.collateral-btn {
+  padding: 8px 12px;
+  border: 2px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font-family: "Franklin Gothic Book", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 0;
+}
+
+.collateral-btn:hover {
+  background: rgba(58, 180, 239, 0.2);
+}
+
+.collateral-btn.active {
+  background: var(--accent);
+  color: #0b1624;
+}
+
+/* ───────── Trade Popup Close Button ───────── */
+.close-trade-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--accent);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+}
+
+.close-trade-btn:hover {
+  background: var(--accent);
+  color: #0b1624;
+}
+
+.trade-popup-content {
+  position: relative;
+  background: linear-gradient(135deg, #0b1624 0%, #1a2a3d 100%);
+  border: 3px solid var(--accent);
+  border-radius: 16px;
+  padding: 24px 32px;
+  min-width: 320px;
+  box-shadow: 0 0 40px rgba(58, 180, 239, 0.4), 0 0 80px rgba(58, 180, 239, 0.2);
+}
+
+.trade-close-hint {
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: #9ca3af;
+  text-align: center;
+}
+
 /* ───────── Mobile adjustments for new elements ───────── */
 @media (max-width: 800px) {
   .header-container {
@@ -560,5 +636,14 @@ button:not(#rollBtn):hover {
 
   .wallet-modal-content {
     padding: 20px;
+  }
+
+  .collateral-buttons {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .collateral-btn {
+    padding: 6px 10px;
+    font-size: 0.85rem;
   }
 }
