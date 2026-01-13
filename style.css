@@ -300,31 +300,34 @@ button:not(#rollBtn):hover {
 }
 
 .mode-btn {
-  padding: 10px 20px;
+  padding: 6px 14px;
   border: 2px solid var(--accent);
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--accent);
   font-family: "Franklin Gothic Book", sans-serif;
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .mode-btn:hover {
-  background: rgba(58, 180, 239, 0.2);
+  background: rgba(58, 180, 239, 0.15);
 }
 
 .mode-btn.active {
-  background: var(--accent);
-  color: #0b1624;
+  background: transparent;
+  color: var(--accent);
+  border-width: 3px;
+  font-weight: 700;
 }
 
 .mode-btn.connected {
-  background: #10b981;
+  background: transparent;
   border-color: #10b981;
-  color: #fff;
+  color: #10b981;
+  border-width: 3px;
 }
 
 .disconnect-btn {
@@ -625,8 +628,8 @@ button:not(#rollBtn):hover {
   }
 
   .mode-btn {
-    padding: 8px 14px;
-    font-size: 0.85rem;
+    padding: 5px 10px;
+    font-size: 0.75rem;
   }
 
   .trade-popup-content {
