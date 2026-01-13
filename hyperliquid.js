@@ -200,7 +200,19 @@ const HyperliquidManager = (() => {
     try {
       const nonce = Date.now();
 
-      // EIP-712 typed data structure for eth_signTypedData_v4
+      // Get the ethereum provider
+      const ethereum = window.ethereum || window.rabby;
+      if (!ethereum) {
+        throw new Error('No ethereum provider found');
+      }
+
+      console.log('=== AGENT WALLET APPROVAL ===');
+      console.log('Wallet address:', walletAddress);
+      console.log('Agent address:', agentWallet.address);
+      console.log('Nonce:', nonce);
+
+      // EIP-712 typed data structure for Hyperliquid
+      // Based on Hyperliquid's signature requirements
       const typedData = {
         types: {
           EIP712Domain: [
@@ -234,13 +246,23 @@ const HyperliquidManager = (() => {
       console.log('Requesting agent wallet approval signature...');
       console.log('Typed data:', JSON.stringify(typedData, null, 2));
 
-      // Request signature using eth_signTypedData_v4 directly
-      const signature = await provider.send('eth_signTypedData_v4', [
-        walletAddress,
-        JSON.stringify(typedData)
-      ]);
-
-      console.log('Signature received:', signature);
+      // Request signature using eth_signTypedData_v4 directly via ethereum provider
+      let signature;
+      try {
+        console.log('Calling eth_signTypedData_v4 with address:', walletAddress);
+        signature = await ethereum.request({
+          method: 'eth_signTypedData_v4',
+          params: [walletAddress, JSON.stringify(typedData)]
+        });
+        console.log('Signature received:', signature);
+      } catch (signError) {
+        console.error('Signature request failed:', signError);
+        // User rejected or wallet error
+        if (signError.code === 4001) {
+          console.log('User rejected signature request');
+        }
+        throw signError;
+      }
 
       // Split signature into r, s, v
       const sig = ethers.utils.splitSignature(signature);
@@ -289,6 +311,7 @@ const HyperliquidManager = (() => {
       }
     } catch (error) {
       console.error('Error approving agent wallet:', error);
+      console.error('Error details:', error.message, error.code);
       // Continue anyway for testing
       return true;
     }
@@ -304,7 +327,16 @@ const HyperliquidManager = (() => {
     try {
       const nonce = Date.now();
 
-      // EIP-712 typed data structure for eth_signTypedData_v4
+      // Get the ethereum provider
+      const ethereum = window.ethereum || window.rabby;
+      if (!ethereum) {
+        throw new Error('No ethereum provider found');
+      }
+
+      console.log('=== BUILDER FEE APPROVAL ===');
+      console.log('Builder address:', CONFIG.BUILDER_ADDRESS);
+
+      // EIP-712 typed data structure for Hyperliquid
       const typedData = {
         types: {
           EIP712Domain: [
@@ -336,15 +368,24 @@ const HyperliquidManager = (() => {
       };
 
       console.log('Requesting builder fee approval signature...');
-      console.log('Builder address:', CONFIG.BUILDER_ADDRESS);
+      console.log('Typed data:', JSON.stringify(typedData, null, 2));
 
-      // Request signature using eth_signTypedData_v4 directly
-      const signature = await provider.send('eth_signTypedData_v4', [
-        walletAddress,
-        JSON.stringify(typedData)
-      ]);
-
-      console.log('Builder fee signature received:', signature);
+      // Request signature using eth_signTypedData_v4 directly via ethereum provider
+      let signature;
+      try {
+        console.log('Calling eth_signTypedData_v4 with address:', walletAddress);
+        signature = await ethereum.request({
+          method: 'eth_signTypedData_v4',
+          params: [walletAddress, JSON.stringify(typedData)]
+        });
+        console.log('Builder fee signature received:', signature);
+      } catch (signError) {
+        console.error('Builder fee signature request failed:', signError);
+        if (signError.code === 4001) {
+          console.log('User rejected builder fee signature request');
+        }
+        throw signError;
+      }
 
       const sig = ethers.utils.splitSignature(signature);
 
@@ -375,6 +416,7 @@ const HyperliquidManager = (() => {
       return result.status === 'ok';
     } catch (error) {
       console.error('Error approving builder fee:', error);
+      console.error('Error details:', error.message, error.code);
       return true; // Continue for demo
     }
   };
