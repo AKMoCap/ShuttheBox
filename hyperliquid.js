@@ -5,9 +5,9 @@ const HyperliquidManager = (() => {
   const CONFIG = {
     MAINNET_API: 'https://api.hyperliquid.xyz',
     TESTNET_API: 'https://api.hyperliquid-testnet.xyz',
-    // Hyperliquid EVM chainId for user-signed actions
-    USER_SIGNED_CHAIN_ID: 999, // 0x3e7 - Hyperliquid EVM chain
-    USER_SIGNED_CHAIN_ID_HEX: '0x3e7',
+    // Hyperliquid EVM chainId for user-signed actions (must be 0x66eee / 421614)
+    USER_SIGNED_CHAIN_ID: 421614, // 0x66eee - required for user-signed actions
+    USER_SIGNED_CHAIN_ID_HEX: '0x66eee',
     // L1 chainId for order actions on Hyperliquid (always 1337)
     L1_CHAIN_ID: 1337,
     L1_CHAIN_ID_HEX: '0x539',
@@ -76,7 +76,13 @@ const HyperliquidManager = (() => {
       const agentSetupSuccess = await setupAgentWallet();
 
       if (!agentSetupSuccess) {
-        console.warn('Agent wallet setup incomplete - trading may not work');
+        console.error('Agent wallet setup failed - cannot proceed with PerpPlay');
+        // Disconnect since we can't trade without a valid agent
+        disconnectWallet();
+        return {
+          success: false,
+          error: 'Agent wallet setup failed. Please try connecting again and approve the required transactions.'
+        };
       }
 
       return {
@@ -301,19 +307,25 @@ const HyperliquidManager = (() => {
         console.log('Agent wallet approved successfully');
 
         // Now approve builder fee
-        await approveBuilderFee();
+        const builderApproved = await approveBuilderFee();
+        if (!builderApproved) {
+          console.error('Builder fee approval failed');
+          return false;
+        }
 
         return true;
       } else {
         console.error('Agent approval failed:', result);
-        // Continue anyway for testing
-        return true;
+        alert('Agent wallet approval failed: ' + (result.response || 'Unknown error. Please try again.'));
+        return false;
       }
     } catch (error) {
       console.error('Error approving agent wallet:', error);
       console.error('Error details:', error.message, error.code);
-      // Continue anyway for testing
-      return true;
+      if (error.code !== 4001) { // Don't alert if user rejected
+        alert('Agent wallet setup error: ' + error.message);
+      }
+      return false;
     }
   };
 
@@ -413,11 +425,22 @@ const HyperliquidManager = (() => {
 
       const result = await response.json();
       console.log('Builder fee approval result:', result);
-      return result.status === 'ok';
+      
+      if (result.status === 'ok') {
+        console.log('Builder fee approved successfully');
+        return true;
+      } else {
+        console.error('Builder fee approval failed:', result);
+        alert('Builder fee approval failed: ' + (result.response || 'Unknown error. Please try again.'));
+        return false;
+      }
     } catch (error) {
       console.error('Error approving builder fee:', error);
       console.error('Error details:', error.message, error.code);
-      return true; // Continue for demo
+      if (error.code !== 4001) { // Don't alert if user rejected
+        alert('Builder fee setup error: ' + error.message);
+      }
+      return false;
     }
   };
 
