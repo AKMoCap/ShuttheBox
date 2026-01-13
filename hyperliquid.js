@@ -428,20 +428,29 @@ const HyperliquidManager = (() => {
 
   // Sign an order action using agent wallet
   const signOrderAction = async (action, nonce) => {
-    if (!agentWallet) {
-      throw new Error('Agent wallet not available');
+    if (!agentWallet || !walletAddress) {
+      throw new Error('Agent wallet or user address not available');
     }
+
+    console.log('=== SIGNING ORDER ===');
+    console.log('User address:', walletAddress);
+    console.log('Agent address:', agentWallet.address);
 
     // Create a connected wallet for signing
     const agentSigner = new ethers.Wallet(agentPrivateKey);
 
-    // L1 action uses phantom agent mechanism
-    // Hash the action and create phantom agent signature
-    const actionHash = ethers.utils.keccak256(
-      ethers.utils.toUtf8Bytes(JSON.stringify(action) + nonce)
+    // connectionId = keccak256(abi.encodePacked(userAddress, agentAddress))
+    // This links the user to the agent wallet
+    const connectionId = ethers.utils.keccak256(
+      ethers.utils.solidityPack(
+        ['address', 'address'],
+        [walletAddress, agentWallet.address]
+      )
     );
 
-    // For L1 actions (orders), use Arbitrum chainId
+    console.log('ConnectionId:', connectionId);
+
+    // For L1 actions (orders), use the correct chainId
     const domain = {
       name: 'HyperliquidSignTransaction',
       version: '1',
@@ -458,10 +467,15 @@ const HyperliquidManager = (() => {
 
     const message = {
       source: CONFIG.USE_TESTNET ? 'b' : 'a', // 'a' for mainnet, 'b' for testnet
-      connectionId: actionHash
+      connectionId: connectionId
     };
 
+    console.log('Signing with domain:', domain);
+    console.log('Signing message:', message);
+
     const signature = await agentSigner._signTypedData(domain, types, message);
+    console.log('Agent signature:', signature);
+
     return ethers.utils.splitSignature(signature);
   };
 
