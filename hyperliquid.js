@@ -5,9 +5,11 @@ const HyperliquidManager = (() => {
   const CONFIG = {
     MAINNET_API: 'https://api.hyperliquid.xyz',
     TESTNET_API: 'https://api.hyperliquid-testnet.xyz',
-    // Hyperliquid EVM chainId for user-signed actions (must be 0x66eee / 421614)
-    USER_SIGNED_CHAIN_ID: 421614, // 0x66eee - required for user-signed actions
-    USER_SIGNED_CHAIN_ID_HEX: '0x66eee',
+    // ChainId for user-signed actions - Mainnet uses Arbitrum One (42161), Testnet uses Arbitrum Sepolia (421614)
+    MAINNET_USER_SIGNED_CHAIN_ID: 42161, // 0xa4b1 - Arbitrum One
+    MAINNET_USER_SIGNED_CHAIN_ID_HEX: '0xa4b1',
+    TESTNET_USER_SIGNED_CHAIN_ID: 421614, // 0x66eee - Arbitrum Sepolia
+    TESTNET_USER_SIGNED_CHAIN_ID_HEX: '0x66eee',
     // L1 chainId for order actions on Hyperliquid (always 1337)
     L1_CHAIN_ID: 1337,
     L1_CHAIN_ID_HEX: '0x539',
@@ -18,6 +20,10 @@ const HyperliquidManager = (() => {
     TOP_TOKENS_COUNT: 25,
     USE_TESTNET: false // Set to true for testing
   };
+
+  // Helper to get correct chain ID based on network
+  const getUserSignedChainId = () => CONFIG.USE_TESTNET ? CONFIG.TESTNET_USER_SIGNED_CHAIN_ID : CONFIG.MAINNET_USER_SIGNED_CHAIN_ID;
+  const getUserSignedChainIdHex = () => CONFIG.USE_TESTNET ? CONFIG.TESTNET_USER_SIGNED_CHAIN_ID_HEX : CONFIG.MAINNET_USER_SIGNED_CHAIN_ID_HEX;
 
   // State
   let provider = null;
@@ -238,7 +244,7 @@ const HyperliquidManager = (() => {
         domain: {
           name: 'HyperliquidSignTransaction',
           version: '1',
-          chainId: CONFIG.USER_SIGNED_CHAIN_ID,
+          chainId: getUserSignedChainId(),
           verifyingContract: '0x0000000000000000000000000000000000000000'
         },
         message: {
@@ -278,7 +284,7 @@ const HyperliquidManager = (() => {
         action: {
           type: 'approveAgent',
           hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
-          signatureChainId: CONFIG.USER_SIGNED_CHAIN_ID_HEX,
+          signatureChainId: getUserSignedChainIdHex(),
           agentAddress: agentWallet.address,
           agentName: 'PerpPlay',
           nonce: nonce
@@ -368,7 +374,7 @@ const HyperliquidManager = (() => {
         domain: {
           name: 'HyperliquidSignTransaction',
           version: '1',
-          chainId: CONFIG.USER_SIGNED_CHAIN_ID,
+          chainId: getUserSignedChainId(),
           verifyingContract: '0x0000000000000000000000000000000000000000'
         },
         message: {
@@ -408,7 +414,7 @@ const HyperliquidManager = (() => {
           action: {
             type: 'approveBuilderFee',
             hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
-            signatureChainId: CONFIG.USER_SIGNED_CHAIN_ID_HEX,
+            signatureChainId: getUserSignedChainIdHex(),
             maxFeeRate: '0.05%',
             builder: CONFIG.BUILDER_ADDRESS,
             nonce: nonce
