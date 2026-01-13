@@ -8,9 +8,9 @@ const HyperliquidManager = (() => {
     // Hyperliquid EVM chainId for user-signed actions
     USER_SIGNED_CHAIN_ID: 999, // 0x3e7 - Hyperliquid EVM chain
     USER_SIGNED_CHAIN_ID_HEX: '0x3e7',
-    // L1 chainId for order actions on Hyperliquid
-    L1_CHAIN_ID: 999, // Hyperliquid EVM
-    L1_CHAIN_ID_HEX: '0x3e7',
+    // L1 chainId for order actions on Hyperliquid (always 1337)
+    L1_CHAIN_ID: 1337,
+    L1_CHAIN_ID_HEX: '0x539',
     BUILDER_ADDRESS: '0x7B4497c1B70dE6546B551Bdf8f951Da53B71b97d',
     BUILDER_FEE_BPS: 5, // 5 basis points = 0.05%
     LEVERAGE: 20,
@@ -426,6 +426,143 @@ const HyperliquidManager = (() => {
     return Date.now();
   };
 
+  // Simple msgpack encoder for Hyperliquid actions
+  const msgpackEncode = (obj) => {
+    const encodeValue = (val) => {
+      if (val === null || val === undefined) {
+        return new Uint8Array([0xc0]); // nil
+      }
+      if (typeof val === 'boolean') {
+        return new Uint8Array([val ? 0xc3 : 0xc2]);
+      }
+      if (typeof val === 'number') {
+        if (Number.isInteger(val)) {
+          if (val >= 0 && val <= 127) {
+            return new Uint8Array([val]); // positive fixint
+          }
+          if (val >= 0 && val <= 255) {
+            return new Uint8Array([0xcc, val]); // uint8
+          }
+          if (val >= 0 && val <= 65535) {
+            const buf = new Uint8Array(3);
+            buf[0] = 0xcd; // uint16
+            buf[1] = (val >> 8) & 0xff;
+            buf[2] = val & 0xff;
+            return buf;
+          }
+          if (val >= 0 && val <= 0xffffffff) {
+            const buf = new Uint8Array(5);
+            buf[0] = 0xce; // uint32
+            buf[1] = (val >> 24) & 0xff;
+            buf[2] = (val >> 16) & 0xff;
+            buf[3] = (val >> 8) & 0xff;
+            buf[4] = val & 0xff;
+            return buf;
+          }
+        }
+        // For floats or large numbers, encode as string
+        const str = val.toString();
+        return encodeValue(str);
+      }
+      if (typeof val === 'string') {
+        const encoder = new TextEncoder();
+        const strBytes = encoder.encode(val);
+        const len = strBytes.length;
+        let header;
+        if (len <= 31) {
+          header = new Uint8Array([0xa0 | len]); // fixstr
+        } else if (len <= 255) {
+          header = new Uint8Array([0xd9, len]); // str8
+        } else {
+          header = new Uint8Array([0xda, (len >> 8) & 0xff, len & 0xff]); // str16
+        }
+        const result = new Uint8Array(header.length + strBytes.length);
+        result.set(header);
+        result.set(strBytes, header.length);
+        return result;
+      }
+      if (Array.isArray(val)) {
+        const len = val.length;
+        let header;
+        if (len <= 15) {
+          header = new Uint8Array([0x90 | len]); // fixarray
+        } else {
+          header = new Uint8Array([0xdc, (len >> 8) & 0xff, len & 0xff]); // array16
+        }
+        const parts = [header];
+        for (const item of val) {
+          parts.push(encodeValue(item));
+        }
+        const totalLen = parts.reduce((sum, p) => sum + p.length, 0);
+        const result = new Uint8Array(totalLen);
+        let offset = 0;
+        for (const part of parts) {
+          result.set(part, offset);
+          offset += part.length;
+        }
+        return result;
+      }
+      if (typeof val === 'object') {
+        const keys = Object.keys(val);
+        const len = keys.length;
+        let header;
+        if (len <= 15) {
+          header = new Uint8Array([0x80 | len]); // fixmap
+        } else {
+          header = new Uint8Array([0xde, (len >> 8) & 0xff, len & 0xff]); // map16
+        }
+        const parts = [header];
+        for (const key of keys) {
+          parts.push(encodeValue(key));
+          parts.push(encodeValue(val[key]));
+        }
+        const totalLen = parts.reduce((sum, p) => sum + p.length, 0);
+        const result = new Uint8Array(totalLen);
+        let offset = 0;
+        for (const part of parts) {
+          result.set(part, offset);
+          offset += part.length;
+        }
+        return result;
+      }
+      return new Uint8Array([0xc0]); // nil fallback
+    };
+    return encodeValue(obj);
+  };
+
+  // Compute action hash for L1 signing (msgpack + nonce + vault)
+  const computeActionHash = (action, nonce, vaultAddress = null) => {
+    const actionBytes = msgpackEncode(action);
+
+    // Convert nonce to 8-byte big-endian
+    const nonceBytes = new Uint8Array(8);
+    let n = nonce;
+    for (let i = 7; i >= 0; i--) {
+      nonceBytes[i] = n & 0xff;
+      n = Math.floor(n / 256);
+    }
+
+    // Vault address flag + address
+    let vaultBytes;
+    if (vaultAddress === null) {
+      vaultBytes = new Uint8Array([0x00]);
+    } else {
+      vaultBytes = new Uint8Array(21);
+      vaultBytes[0] = 0x01;
+      const addrBytes = ethers.utils.arrayify(vaultAddress);
+      vaultBytes.set(addrBytes, 1);
+    }
+
+    // Concatenate all parts
+    const totalLen = actionBytes.length + nonceBytes.length + vaultBytes.length;
+    const data = new Uint8Array(totalLen);
+    data.set(actionBytes, 0);
+    data.set(nonceBytes, actionBytes.length);
+    data.set(vaultBytes, actionBytes.length + nonceBytes.length);
+
+    return ethers.utils.keccak256(data);
+  };
+
   // Sign an order action using agent wallet
   const signOrderAction = async (action, nonce) => {
     if (!agentWallet || !walletAddress) {
@@ -439,18 +576,11 @@ const HyperliquidManager = (() => {
     // Create a connected wallet for signing
     const agentSigner = new ethers.Wallet(agentPrivateKey);
 
-    // connectionId = keccak256(abi.encodePacked(userAddress, agentAddress))
-    // This links the user to the agent wallet
-    const connectionId = ethers.utils.keccak256(
-      ethers.utils.solidityPack(
-        ['address', 'address'],
-        [walletAddress, agentWallet.address]
-      )
-    );
+    // Compute connectionId as hash of action (msgpack encoded) + nonce + vault
+    const connectionId = computeActionHash(action, nonce, null);
+    console.log('ConnectionId (action hash):', connectionId);
 
-    console.log('ConnectionId:', connectionId);
-
-    // For L1 actions (orders), use the correct chainId
+    // For L1 actions (orders), chainId is always 1337
     const domain = {
       name: 'HyperliquidSignTransaction',
       version: '1',
