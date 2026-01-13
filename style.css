@@ -329,6 +329,13 @@ button:not(#rollBtn):hover {
   color: #10b981 !important;
 }
 
+/* Connected AND active state - ensure white text is readable */
+.mode-btn.connected.active {
+  background: transparent;
+  border: 3px solid #10b981 !important;
+  color: #fff !important;
+}
+
 .disconnect-btn {
   background: transparent;
   border-color: #ef4444;
