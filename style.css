@@ -1,0 +1,283 @@
+:root {
+  --bg: #111827;
+  --accent: #3AB4EF;
+  --text: #3AB4EF;
+}
+
+/* reset + base */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background:
+    url("space2.jpg") no-repeat center center fixed,
+    var(--bg);
+  background-size: cover;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* center all direct children (H1s and .game-container) */
+  padding-top: 7px;
+  min-height: 100vh;
+  font-family: "Franklin Gothic Book", sans-serif;
+  color: var(--text);
+}
+
+h1 {
+  text-align: center;
+  margin: 5px 0 5px;
+  letter-spacing: 2px;
+  text-shadow: 0 0 6px var(--accent);
+}
+
+/* ───────── GAME CONTAINER ───────── */
+.game-container {
+  position: relative;
+  /* pull it out of the full‑width flow and shrink‑wrap it around the board */
+  width: max-content;
+  margin: 20px auto 0;
+  /* center under the H1s */
+}
+
+/* ───────── Sidebar (odds + stats) ───────── */
+.right-container {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  margin-left: 40px;
+  /* gap between board and sidebar */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  /* space between odds & stats */
+}
+
+/* ───────── Board + Roll Button ───────── */
+#boardWrap {
+  position: relative;
+  /* for absolute #diceResult and #rollBtn */
+}
+
+#board {
+  display: block;
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+  border: 4px solid var(--accent);
+  border-radius: .75rem;
+  background: rgba(255, 255, 255, 0.05) url("logo.png") center/99% no-repeat;
+}
+
+/* dice result in the top‑center of the board */
+#diceResult {
+  position: absolute;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-weight: 800;
+  font-size: 1.65rem;
+  color: var(--accent);
+  z-index: 5;
+}
+
+/* roll button just below the cards */
+#rollBtn.primary {
+  position: absolute;
+  top: 78%;
+  /* tweak this value to move the button up/down */
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.25rem;
+  padding: 10px 18px;
+  border: none;
+  border-radius: .5rem;
+  background: var(--accent);
+  color: #0f172a;
+  cursor: pointer;
+}
+
+#rollBtn.primary:hover {
+  opacity: .9;
+}
+
+/* ───────── Odds Panel ───────── */
+#immediateOddsDisplay {
+  text-align: center;
+}
+
+.odds-label {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.odds-value {
+  font-size: 1.5rem;
+  color: var(--accent);
+}
+
+/* ───────── Stats Table ───────── */
+#statsSection table {
+  border-collapse: collapse;
+  color: var(--accent);
+}
+
+#statsSection td {
+  padding: 4px 8px;
+  border: 1px solid var(--accent);
+}
+
+/* ───────── Bottom Controls ───────── */
+#scoreBar {
+  margin: 20px 0 4px;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+#controls {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  margin-bottom: 8px;
+  font-size: 1.25rem;
+}
+
+button:not(#rollBtn) {
+  margin-top: 12px;
+  padding: 8px 18px;
+  border: none;
+  border-radius: .5rem;
+  background: var(--accent);
+  color: #0f172a;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:not(#rollBtn):hover {
+  opacity: .9;
+}
+
+#instructions {
+  max-width: 500px;
+  margin: 20px auto;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: "Franklin Gothic Book", sans-serif;
+  font-size: 1rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+#instructions strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+}
+
+/* ───────── Mobile Fallback ───────── 
+@media (max-width: 800px) {
+  .game-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+  }
+}
+
+/* shrink canvas text on very small screens 
+@media (max-width: 480px) {
+  canvas {
+    font-size: 80%;
+  }
+}*/
+
+/* ───────── Mobile (≤800px) ───────── */
+@media (max-width: 800px) {
+  .game-container {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px auto 0;
+    gap: 30px;
+  }
+
+  .right-container {
+    position: static;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+
+  #board {
+    width: 90vw;
+    max-width: 600px;
+  }
+
+  #rollBtn.primary {
+    top: 75%;
+  }
+
+  /* ─── restore your space.png backdrop on mobile ─── */
+  body {
+    /* drop fixed so the image scrolls under the entire page */
+    background-attachment: scroll !important;
+    /* make sure it still covers the viewport */
+    background-size: cover !important;
+  }
+}
+
+/* ───────── extra tweak for very small screens ───────── */
+@media (max-width: 480px) {
+  canvas {
+    font-size: 80%;
+  }
+
+  #diceResult {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 800px) {
+
+  /* pull the “Remaining total” closer to the board */
+  #scoreBar {
+    margin-top: 4px;
+    /* was 20px; feel free to tweak down even further */
+    margin-bottom: 4px;
+    /* keeps your existing bottom spacing */
+  }
+
+  /* give the “Odds to Survive” some breathing room */
+  #immediateOddsDisplay {
+    padding: 20px 0;
+    /* adds 12px top & bottom padding around that section */
+  }
+}
+
+
+/* ───────── Controls cheat-sheet ───────── */
+.controls-box {
+  margin-top: 12px;
+  text-align: center;
+  line-height: 1.35;
+  font-size: 0.95rem;
+  color: var(--accent);
+  display: block;
+  /* explicitly show it by default */
+}
+
+/* hide on mobile / tablet */
+@media (max-width: 800px) {
+  .controls-box {
+    display: none;
+  }
+}

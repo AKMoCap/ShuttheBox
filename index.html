@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Motus Shut the Box</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+
+ 
+</head>
+
+<body>
+  <h1>
+    <a href="https://motusdash.replit.app/sectorwatch.html" target="_blank" rel="noopener noreferrer"
+      style="color: inherit; text-decoration: none;">
+      MOTUS
+    </a>
+  </h1>
+  <h1>SHUT THE BOX</h1>
+
+  <!-- ───────── GAME + SIDEBAR FLEX ───────── -->
+  <div class="game-container">
+    <!-- BOARD WRAP: canvas + dice result + roll button -->
+    <div id="boardWrap">
+      <canvas id="board" width="900" height="660"></canvas>
+      <div id="diceResult"></div>
+      <button id="rollBtn" class="primary">ROLL</button>
+    </div>
+
+    <!-- RIGHT COLUMN: odds then stats -->
+    <div class="right-container">
+      <div id="immediateOddsDisplay">
+        <div class="odds-label">Odds to Survive:</div>
+        <div class="odds-value"><span id="immediateOdds">…</span></div>
+      </div>
+      <div id="statsSection">
+        <table>
+          <tr>
+            <td>Total Players</td>
+            <td><span id="playerCount">…</span></td>
+          </tr>
+          <tr>
+            <td>Total Plays</td>
+            <td><span id="playCount">…</span></td>
+          </tr>
+          <tr>
+            <td>Total Wins</td>
+            <td><span id="winCount">…</span></td>
+          </tr>
+          <tr>
+            <td>Total Losses</td>
+            <td><span id="loseCount">…</span></td>
+          </tr>
+          <tr>
+            <td>Your Wins</td>
+            <td><span id="yourWins">0</span></td>
+          </tr>
+          <tr>
+            <td>Your Losses</td>
+            <td><span id="yourLosses">0</span></td>
+          </tr>
+        </table>
+
+        <!-- Desktop-only controls cheat-sheet -->
+        <div id="controlsBox" class="controls-box">
+          <strong>Keyboard Controls</strong><br>
+          Enter&nbsp;– Roll<br>
+          Arrows – Select Cards<br>
+          Spacebar – Flip/Unflip<br>
+          Ctrl + R – Restart
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- bottom controls -->
+  <div id="scoreBar">Remaining total: <span id="remaining">78</span></div>
+  <div id="controls">
+    <label><input type="radio" name="diceMode" value="1"> 1 Die</label>
+    <label><input type="radio" name="diceMode" value="2" checked> 2 Dice</label>
+  </div>
+  <button id="restartBtn">Restart Game</button>
+  <button id="soundToggle">🔇 Sound</button>
+
+  <!-- New instructions box -->
+  <div id="instructions">
+    <strong>Instructions:</strong>
+    <p>
+      The goal of the game is to "shut the box" by rolling dice to turn over every card.
+      For example, if you roll a 7, it is your choice to turn over the 7 card, or any combination of cards that adds to
+      7.
+      If you are down to single digit cards, you have the choice to roll just 1 die.
+    </p>
+    <p>Good luck!</p>
+  </div>
+
+  <!-- firebase & game scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js" defer></script>
+  <script src="firebase.js" defer></script>
+  <script src="stb.js" defer></script>
+</body>
+
+</html>
