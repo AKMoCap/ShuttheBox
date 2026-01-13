@@ -5,8 +5,12 @@ const HyperliquidManager = (() => {
   const CONFIG = {
     MAINNET_API: 'https://api.hyperliquid.xyz',
     TESTNET_API: 'https://api.hyperliquid-testnet.xyz',
-    CHAIN_ID: 42161, // Arbitrum
-    SIGNATURE_CHAIN_ID: '0xa4b1', // Arbitrum in hex
+    // For user-signed actions (approveAgent, approveBuilderFee), use 421614
+    USER_SIGNED_CHAIN_ID: 421614, // 0x66eee - Hyperliquid user-signed actions
+    USER_SIGNED_CHAIN_ID_HEX: '0x66eee',
+    // For L1 actions (orders), use Arbitrum
+    L1_CHAIN_ID: 42161, // Arbitrum mainnet
+    L1_CHAIN_ID_HEX: '0xa4b1',
     BUILDER_ADDRESS: '0x7B4497c1B70dE6546B551Bdf8f951Da53B71b97d',
     BUILDER_FEE_BPS: 5, // 5 basis points = 0.05%
     LEVERAGE: 20,
@@ -189,11 +193,12 @@ const HyperliquidManager = (() => {
       const timestamp = Date.now();
       const nonce = timestamp;
 
-      // EIP-712 domain for Hyperliquid
+      // EIP-712 domain for user-signed actions (approveAgent)
+      // Uses chainId 421614 (0x66eee) for user-signed actions
       const domain = {
         name: 'HyperliquidSignTransaction',
         version: '1',
-        chainId: CONFIG.CHAIN_ID,
+        chainId: CONFIG.USER_SIGNED_CHAIN_ID,
         verifyingContract: '0x0000000000000000000000000000000000000000'
       };
 
@@ -214,6 +219,10 @@ const HyperliquidManager = (() => {
         nonce: nonce
       };
 
+      console.log('Requesting agent wallet approval signature...');
+      console.log('Domain:', domain);
+      console.log('Message:', message);
+
       // Request signature from user's wallet
       const signature = await signer._signTypedData(domain, types, message);
 
@@ -228,7 +237,7 @@ const HyperliquidManager = (() => {
           action: {
             type: 'approveAgent',
             hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
-            signatureChainId: CONFIG.SIGNATURE_CHAIN_ID,
+            signatureChainId: CONFIG.USER_SIGNED_CHAIN_ID_HEX,
             agentAddress: agentWallet.address,
             agentName: 'PerpPlay',
             nonce: nonce
@@ -244,9 +253,14 @@ const HyperliquidManager = (() => {
       });
 
       const result = await response.json();
+      console.log('Agent approval response:', result);
 
       if (result.status === 'ok') {
         console.log('Agent wallet approved successfully');
+
+        // Now approve builder fee
+        await approveBuilderFee();
+
         return true;
       } else {
         console.error('Agent approval failed:', result);
@@ -254,9 +268,7 @@ const HyperliquidManager = (() => {
       }
     } catch (error) {
       console.error('Error approving agent wallet:', error);
-      // For demo purposes, continue even if approval fails
-      // In production, this should return false
-      return true;
+      return false;
     }
   };
 
@@ -271,10 +283,12 @@ const HyperliquidManager = (() => {
       const timestamp = Date.now();
       const nonce = timestamp;
 
+      // EIP-712 domain for user-signed actions
+      // Uses chainId 421614 (0x66eee) for user-signed actions
       const domain = {
         name: 'HyperliquidSignTransaction',
         version: '1',
-        chainId: CONFIG.CHAIN_ID,
+        chainId: CONFIG.USER_SIGNED_CHAIN_ID,
         verifyingContract: '0x0000000000000000000000000000000000000000'
       };
 
@@ -294,6 +308,9 @@ const HyperliquidManager = (() => {
         nonce: nonce
       };
 
+      console.log('Requesting builder fee approval signature...');
+      console.log('Builder address:', CONFIG.BUILDER_ADDRESS);
+
       const signature = await signer._signTypedData(domain, types, message);
       const sig = ethers.utils.splitSignature(signature);
 
@@ -304,7 +321,7 @@ const HyperliquidManager = (() => {
           action: {
             type: 'approveBuilderFee',
             hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
-            signatureChainId: CONFIG.SIGNATURE_CHAIN_ID,
+            signatureChainId: CONFIG.USER_SIGNED_CHAIN_ID_HEX,
             maxFeeRate: '0.05%',
             builder: CONFIG.BUILDER_ADDRESS,
             nonce: nonce
@@ -348,10 +365,11 @@ const HyperliquidManager = (() => {
       ethers.utils.toUtf8Bytes(JSON.stringify(action) + nonce)
     );
 
+    // For L1 actions (orders), use Arbitrum chainId
     const domain = {
       name: 'HyperliquidSignTransaction',
       version: '1',
-      chainId: CONFIG.CHAIN_ID,
+      chainId: CONFIG.L1_CHAIN_ID,
       verifyingContract: '0x0000000000000000000000000000000000000000'
     };
 
