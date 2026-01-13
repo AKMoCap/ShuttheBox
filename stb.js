@@ -18,12 +18,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const freePlayBtn = document.getElementById('freePlayBtn');
   const perpPlayBtn = document.getElementById('perpPlayBtn');
   const disconnectBtn = document.getElementById('disconnectBtn');
+  const walletAddressEl = document.getElementById('walletAddress');
   const walletModal = document.getElementById('walletModal');
   const connectMetamaskBtn = document.getElementById('connectMetamask');
   const connectRabbyBtn = document.getElementById('connectRabby');
   const closeWalletModalBtn = document.getElementById('closeWalletModal');
   const collateralSection = document.getElementById('collateralSection');
   const collateralBtns = document.querySelectorAll('.collateral-btn');
+  let connectedWalletAddress = null;
 
   // Trade popup elements
   const tradePopup = document.getElementById('tradePopup');
@@ -41,6 +43,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeTradePopupBtn = document.getElementById('closeTradePopup');
 
   /* ───────── PerpPlay Mode Functions ───────── */
+  function truncateAddress(address) {
+    if (!address) return '';
+    return `Wallet: ${address.slice(0, 6)}....${address.slice(-4)}`;
+  }
+
   function updateModeButtons() {
     if (playMode === 'free') {
       freePlayBtn.classList.add('active');
@@ -49,6 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
       perpPlayBtn.textContent = 'PerpPlay - Connect Wallet';
       disconnectBtn.style.display = 'none';
       if (collateralSection) collateralSection.style.display = 'none';
+      if (walletAddressEl) walletAddressEl.style.display = 'none';
     } else {
       freePlayBtn.classList.remove('active');
       perpPlayBtn.classList.add('active');
@@ -57,6 +65,10 @@ document.addEventListener("DOMContentLoaded", () => {
         perpPlayBtn.textContent = 'Connected - PerpPlay';
         disconnectBtn.style.display = 'inline-block';
         if (collateralSection) collateralSection.style.display = 'block';
+        if (walletAddressEl && connectedWalletAddress) {
+          walletAddressEl.textContent = truncateAddress(connectedWalletAddress);
+          walletAddressEl.style.display = 'block';
+        }
       }
     }
   }
@@ -83,11 +95,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (result.success) {
       walletConnected = true;
+      connectedWalletAddress = result.address;
       playMode = 'perpplay';
       updateModeButtons();
-
-      // Approve builder fee
-      await window.HyperliquidManager.approveBuilderFee();
 
       console.log('PerpPlay mode activated for wallet:', result.address);
     } else {
@@ -101,6 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
       window.HyperliquidManager.disconnectWallet();
     }
     walletConnected = false;
+    connectedWalletAddress = null;
     playMode = 'free';
     updateModeButtons();
   }
