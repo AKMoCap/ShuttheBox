@@ -224,7 +224,7 @@ button:not(#rollBtn):hover {
   }
 
   #rollBtn.primary {
-    top: 63%;
+    top: 52%;
   }
 
   /* ─── restore your space.png backdrop on mobile ─── */
