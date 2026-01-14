@@ -13,7 +13,7 @@ const HyperliquidManager = (() => {
     // L1 chainId for order actions on Hyperliquid (always 1337)
     L1_CHAIN_ID: 1337,
     L1_CHAIN_ID_HEX: '0x539',
-    BUILDER_ADDRESS: '0x7B4497c1B70dE6546B551Bdf8f951Da53B71b97d',
+    BUILDER_ADDRESS: '0x7b4497c1b70de6546b551bdf8f951da53b71b97d', // Must be lowercase!
     BUILDER_FEE_BPS: 5, // 5 basis points = 0.05%
     LEVERAGE: 20,
     POSITION_CLOSE_DELAY_MS: 15000, // 15 seconds
@@ -68,7 +68,8 @@ const HyperliquidManager = (() => {
       // Create ethers provider and signer
       provider = new ethers.providers.Web3Provider(ethereum);
       signer = provider.getSigner();
-      walletAddress = await signer.getAddress();
+      // IMPORTANT: Hyperliquid requires lowercase addresses for signing
+      walletAddress = (await signer.getAddress()).toLowerCase();
       isConnected = true;
 
       console.log('Wallet connected:', walletAddress);
@@ -218,9 +219,12 @@ const HyperliquidManager = (() => {
         throw new Error('No ethereum provider found');
       }
 
+      // IMPORTANT: All addresses must be lowercase for Hyperliquid
+      const agentAddr = agentWallet.address.toLowerCase();
+
       console.log('=== AGENT WALLET APPROVAL ===');
       console.log('Wallet address:', walletAddress);
-      console.log('Agent address:', agentWallet.address);
+      console.log('Agent address:', agentAddr);
       console.log('Nonce:', nonce);
 
       // EIP-712 typed data structure for Hyperliquid
@@ -249,7 +253,7 @@ const HyperliquidManager = (() => {
         },
         message: {
           hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
-          agentAddress: agentWallet.address,
+          agentAddress: agentAddr,
           agentName: 'PerpPlay',
           nonce: nonce
         }
@@ -284,8 +288,8 @@ const HyperliquidManager = (() => {
         action: {
           type: 'approveAgent',
           hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
-          signatureChainId: getUserSignedChainIdHex(),
-          agentAddress: agentWallet.address,
+          signatureChainId: CONFIG.USER_SIGNED_CHAIN_ID_HEX,
+          agentAddress: agentAddr,
           agentName: 'PerpPlay',
           nonce: nonce
         },
@@ -539,12 +543,24 @@ const HyperliquidManager = (() => {
       throw new Error('Agent wallet or user address not available');
     }
 
+    // IMPORTANT: Use lowercase addresses
+    const agentAddr = agentWallet.address.toLowerCase();
+
     console.log('=== SIGNING ORDER ===');
     console.log('User address:', walletAddress);
-    console.log('Agent address:', agentWallet.address);
+    console.log('Agent address:', agentAddr);
+    console.log('Agent private key (first 10 chars):', agentPrivateKey.substring(0, 10) + '...');
 
     // Create a connected wallet for signing
     const agentSigner = new ethers.Wallet(agentPrivateKey);
+    console.log('Agent signer address:', agentSigner.address.toLowerCase());
+
+    // Verify the agent signer matches our agent wallet
+    if (agentSigner.address.toLowerCase() !== agentAddr) {
+      console.error('CRITICAL: Agent signer address mismatch!');
+      console.error('Expected:', agentAddr);
+      console.error('Got:', agentSigner.address.toLowerCase());
+    }
 
     // Compute connectionId as hash of action (msgpack encoded) + nonce + vault
     const connectionId = computeActionHash(action, nonce, null);
@@ -570,11 +586,27 @@ const HyperliquidManager = (() => {
       connectionId: connectionId
     };
 
-    console.log('Signing with domain:', domain);
-    console.log('Signing message:', message);
+    console.log('Signing with domain:', JSON.stringify(domain));
+    console.log('Signing with types:', JSON.stringify(types));
+    console.log('Signing message:', JSON.stringify(message));
 
     const signature = await agentSigner._signTypedData(domain, types, message);
     console.log('Agent signature:', signature);
+
+    // Verify the signature recovers to our agent address
+    try {
+      const recoveredAddr = ethers.utils.verifyTypedData(domain, types, message, signature);
+      console.log('Recovered signer address:', recoveredAddr.toLowerCase());
+      if (recoveredAddr.toLowerCase() !== agentAddr) {
+        console.error('SIGNATURE VERIFICATION FAILED!');
+        console.error('Expected:', agentAddr);
+        console.error('Recovered:', recoveredAddr.toLowerCase());
+      } else {
+        console.log('Signature verification SUCCESS - addresses match');
+      }
+    } catch (verifyError) {
+      console.error('Signature verification error:', verifyError);
+    }
 
     return ethers.utils.splitSignature(signature);
   };
