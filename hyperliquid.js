@@ -800,6 +800,35 @@ window.HyperliquidManager = (() => {
     }
   };
 
+  // Get user's available USDC balance (withdrawable/available for trading)
+  const getUserBalance = async () => {
+    if (!walletAddress) return null;
+
+    try {
+      const response = await fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'clearinghouseState',
+          user: walletAddress
+        })
+      });
+
+      const data = await response.json();
+      // withdrawable is the available balance for new positions
+      const withdrawable = parseFloat(data.withdrawable || '0');
+      const accountValue = parseFloat(data.marginSummary?.accountValue || '0');
+
+      return {
+        available: withdrawable,
+        accountValue: accountValue
+      };
+    } catch (error) {
+      console.error('Error fetching user balance:', error);
+      return null;
+    }
+  };
+
   // Get live P&L for game positions
   const getGamePositionsWithPnL = async () => {
     if (gamePositions.length === 0) return [];
@@ -867,6 +896,7 @@ window.HyperliquidManager = (() => {
     closePosition,
     closeAllPositions,
     getUserPositions,
+    getUserBalance,
     getGamePositionsWithPnL,
     clearGamePositions,
     getGamePositionsCount,

@@ -30,6 +30,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // Signature hint element
   const signatureHint = document.getElementById('signatureHint');
 
+  // Balance display element
+  const userBalanceDisplay = document.getElementById('userBalanceDisplay');
+  let balanceUpdateInterval = null;
+  let currentUserBalance = 0;
+
   // Trade toast elements
   const tradeToast = document.getElementById('tradeToast');
   const tradeToastText = document.getElementById('tradeToastText');
@@ -65,6 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (signatureHint) signatureHint.style.display = 'none';
       if (positionTableContainer) positionTableContainer.style.display = 'none';
       stopPnlUpdates();
+      stopBalanceUpdates();
     } else {
       freePlayBtn.classList.remove('active');
       perpPlayBtn.classList.add('active');
@@ -80,6 +86,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (signatureHint) signatureHint.style.display = 'none';
         if (positionTableContainer) positionTableContainer.style.display = 'block';
         startPnlUpdates();
+        startBalanceUpdates();
       } else {
         // Not connected yet - show signature hint
         if (signatureHint) signatureHint.style.display = 'block';
@@ -138,12 +145,26 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (tradeToast) {
       tradeToast.style.display = 'block';
+      tradeToast.classList.remove('error');
     }
+  }
+
+  function showErrorToast(message) {
+    if (tradeToastText) {
+      tradeToastText.textContent = message;
+    }
+    if (tradeToast) {
+      tradeToast.style.display = 'block';
+      tradeToast.classList.add('error');
+    }
+    // Auto-hide error toast after 3 seconds
+    setTimeout(hideTradeToast, 3000);
   }
 
   function hideTradeToast() {
     if (tradeToast) {
       tradeToast.style.display = 'none';
+      tradeToast.classList.remove('error');
     }
   }
 
@@ -212,6 +233,38 @@ document.addEventListener("DOMContentLoaded", () => {
       clearInterval(pnlUpdateInterval);
       pnlUpdateInterval = null;
     }
+  }
+
+  // Balance update functions
+  async function updateUserBalance() {
+    if (!window.HyperliquidManager || playMode !== 'perpplay' || !walletConnected) return;
+
+    try {
+      const balance = await window.HyperliquidManager.getUserBalance();
+      if (balance && userBalanceDisplay) {
+        currentUserBalance = balance.available;
+        userBalanceDisplay.textContent = `$${balance.available.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+    } catch (error) {
+      console.error('Error updating balance:', error);
+    }
+  }
+
+  function startBalanceUpdates() {
+    if (balanceUpdateInterval) return;
+    updateUserBalance(); // Initial update
+    balanceUpdateInterval = setInterval(updateUserBalance, 5000); // Update every 5 seconds
+  }
+
+  function stopBalanceUpdates() {
+    if (balanceUpdateInterval) {
+      clearInterval(balanceUpdateInterval);
+      balanceUpdateInterval = null;
+    }
+    if (userBalanceDisplay) {
+      userBalanceDisplay.textContent = '$0.00';
+    }
+    currentUserBalance = 0;
   }
 
   // Close all positions and end game
@@ -289,6 +342,15 @@ document.addEventListener("DOMContentLoaded", () => {
     pendingTrade = true;
 
     try {
+      // Check if user has enough balance first
+      const balance = await window.HyperliquidManager.getUserBalance();
+      if (!balance || balance.available < selectedCollateral) {
+        console.log(`Insufficient balance: $${balance?.available || 0} < $${selectedCollateral}`);
+        showErrorToast('Not enough collateral to open a new position!');
+        pendingTrade = false;
+        return;
+      }
+
       // Get random token and side first for the toast
       const token = await window.HyperliquidManager.getRandomTopToken();
       if (!token) {
@@ -311,10 +373,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (result.success) {
         console.log(`Position opened: ${token.name} ${side} with $${selectedCollateral}`);
-        // Update position table immediately
+        // Update position table and balance immediately
         await updatePositionTable();
+        await updateUserBalance();
       } else {
         console.error('Trade failed:', result.error);
+        showErrorToast('Trade failed: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Trade execution error:', error);
