@@ -69,6 +69,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let positionsToKeep = [];
   // Track if end game modal was triggered by game end (requires stats recording)
   let endGameModalContext = { recordStats: false, won: false };
+  // Flag to skip position clearing on next startGame call (when keeping positions)
+  let skipPositionClear = false;
 
   /* ───────── PerpPlay Mode Functions ───────── */
   function truncateAddress(address) {
@@ -386,6 +388,8 @@ document.addEventListener("DOMContentLoaded", () => {
         currentGameVolume = 0;
         currentGamePnl = 0;
       }
+      // Skip clearing positions in startGame since we're keeping some
+      skipPositionClear = positionsToKeep.length > 0;
       startGame();
       updatePositionTable();
       return;
@@ -401,8 +405,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // Close selected positions one by one
       for (let i = 0; i < toClose.length; i++) {
         const pos = toClose[i];
+        const tokenName = pos.tokenName || pos.token?.name || 'Unknown';
         if (closingProgress) {
-          closingProgress.textContent = `Closing ${i + 1}/${toClose.length}: ${pos.token}`;
+          closingProgress.textContent = `Closing ${i + 1}/${toClose.length}: ${tokenName}`;
         }
         const result = await window.HyperliquidManager.closePosition(pos);
         if (result.success) {
@@ -437,6 +442,8 @@ document.addEventListener("DOMContentLoaded", () => {
       // Hide overlay and restart
       setTimeout(() => {
         if (closingOverlay) closingOverlay.style.display = 'none';
+        // Skip clearing positions in startGame if we're keeping some
+        skipPositionClear = positionsToKeep.length > 0;
         startGame();
         updatePositionTable();
       }, 2000);
@@ -1418,9 +1425,12 @@ document.addEventListener("DOMContentLoaded", () => {
     currentGameVolume = 0;
     currentGamePnl = 0;
 
-    // Reset position table for PerpPlay mode
+    // Reset position table for PerpPlay mode (unless keeping positions)
     if (playMode === 'perpplay' && window.HyperliquidManager) {
-      window.HyperliquidManager.clearGamePositions();
+      if (!skipPositionClear) {
+        window.HyperliquidManager.clearGamePositions();
+      }
+      skipPositionClear = false; // Reset flag for next game
       updatePositionTable();
     }
   }
