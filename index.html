@@ -196,6 +196,25 @@
     </div>
   </div>
 
+  <!-- End Game Position Selection Modal -->
+  <div id="endGameModal" class="end-game-modal" style="display: none;">
+    <div class="end-game-modal-content">
+      <h2 id="endGameTitle">Game Over!</h2>
+      <p id="endGameSubtitle">Choose which positions to close:</p>
+      <div id="endGamePositionsList" class="end-game-positions-list">
+        <!-- Positions will be populated dynamically -->
+      </div>
+      <div class="end-game-totals">
+        <span>Total P&L:</span>
+        <span id="endGameTotalPnl">$0.00</span>
+      </div>
+      <div class="end-game-buttons">
+        <button id="closeAllPositionsBtn" class="end-game-btn close-all">Close All & End Game</button>
+        <button id="keepSelectedBtn" class="end-game-btn keep-selected">Keep Unchecked & New Game</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Wallet connection modal -->
   <div id="walletModal" class="wallet-modal" style="display: none;">
     <div class="wallet-modal-content">

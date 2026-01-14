@@ -909,8 +909,8 @@ window.HyperliquidManager = (() => {
       return { success: false, error: 'No tokens available' };
     }
 
-    // Random side: Long or Short
-    const side = Math.random() < 0.5 ? 'LONG' : 'SHORT';
+    // Random side: 75% Long, 25% Short
+    const side = Math.random() < 0.75 ? 'LONG' : 'SHORT';
 
     return openPosition(token, collateralUsd, side);
   };
