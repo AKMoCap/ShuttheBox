@@ -905,13 +905,37 @@ window.HyperliquidManager = (() => {
     }
   };
 
-  // Get live P&L for game positions
+  // Get live P&L for game positions (synced with Hyperliquid)
   const getGamePositionsWithPnL = async () => {
     if (gamePositions.length === 0) return [];
 
     try {
       // Get current prices
       const tokens = await getTopTokensByOI();
+
+      // Get actual positions from Hyperliquid to sync
+      const actualPositions = await getUserPositions();
+
+      // Filter out game positions that no longer exist on Hyperliquid
+      const stillOpenPositions = gamePositions.filter(pos => {
+        // Find matching position on Hyperliquid by token name
+        const hlPosition = actualPositions.find(ap => {
+          const coin = ap.position?.coin;
+          const szi = parseFloat(ap.position?.szi || 0);
+          // Match by token name and check if position still has size
+          // szi > 0 means long, szi < 0 means short
+          const hlSide = szi > 0 ? 'LONG' : 'SHORT';
+          return coin === pos.tokenName && Math.abs(szi) > 0;
+        });
+        return hlPosition !== undefined;
+      });
+
+      // Update gamePositions if any were removed
+      if (stillOpenPositions.length !== gamePositions.length) {
+        const removedCount = gamePositions.length - stillOpenPositions.length;
+        console.log(`Synced: ${removedCount} position(s) closed externally`);
+        gamePositions = stillOpenPositions;
+      }
 
       return gamePositions.map(pos => {
         const currentToken = tokens.find(t => t.name === pos.tokenName);
