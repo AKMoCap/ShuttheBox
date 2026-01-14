@@ -289,6 +289,9 @@ document.addEventListener("DOMContentLoaded", () => {
   async function showEndGameModal(title = 'Game Over!', isWin = false) {
     if (!window.HyperliquidManager) return false;
 
+    // Wait 1.5 seconds to ensure all positions are opened
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
     const positions = await window.HyperliquidManager.getGamePositionsWithPnL();
     if (positions.length === 0) {
       return false; // No positions to show
@@ -314,15 +317,17 @@ document.addEventListener("DOMContentLoaded", () => {
         const item = document.createElement('div');
         item.className = 'end-game-position-item';
 
+        // Use tokenName for display (pos.token is the full object)
+        const tokenName = pos.tokenName || pos.token?.name || 'Unknown';
         const sideClass = pos.side === 'LONG' ? 'position-side-long' : 'position-side-short';
         const pnlClass = pnl >= 0 ? 'positive' : 'negative';
         const pnlSign = pnl >= 0 ? '+' : '';
 
         item.innerHTML = `
           <label>
-            <input type="checkbox" checked data-index="${index}" data-token="${pos.token}">
+            <input type="checkbox" checked data-index="${index}" data-token="${tokenName}">
             <div class="position-info">
-              <span class="position-token">${pos.token}</span>
+              <span class="position-token">${tokenName}</span>
               <span class="position-details">
                 <span class="${sideClass}">${pos.side}</span> ${pos.leverage}x | $${pos.collateral?.toFixed(2) || '0.00'}
               </span>
