@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let walletConnected = false;
   let pendingTrade = false; // prevent multiple trades at once
   let selectedCollateral = 10; // default $10
-  let tradePopupCanClose = false; // only allow closing after trade is done
+  let pnlUpdateInterval = null; // interval for live P&L updates
 
   // PerpPlay UI elements
   const freePlayBtn = document.getElementById('freePlayBtn');
@@ -27,20 +27,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const collateralBtns = document.querySelectorAll('.collateral-btn');
   let connectedWalletAddress = null;
 
-  // Trade popup elements
-  const tradePopup = document.getElementById('tradePopup');
-  const tradeIcon = document.getElementById('tradeIcon');
-  const tradeTitle = document.getElementById('tradeTitle');
-  const tradeToken = document.getElementById('tradeToken');
-  const tradeSide = document.getElementById('tradeSide');
-  const tradeLeverage = document.getElementById('tradeLeverage');
-  const tradeCollateral = document.getElementById('tradeCollateral');
-  const tradeSize = document.getElementById('tradeSize');
-  const tradeEntry = document.getElementById('tradeEntry');
-  const tradeCountdown = document.getElementById('tradeCountdown');
-  const tradeResult = document.getElementById('tradeResult');
-  const tradePnl = document.getElementById('tradePnl');
-  const closeTradePopupBtn = document.getElementById('closeTradePopup');
+  // Trade toast elements
+  const tradeToast = document.getElementById('tradeToast');
+  const tradeToastText = document.getElementById('tradeToastText');
+
+  // Position table elements
+  const positionTableContainer = document.getElementById('positionTableContainer');
+  const positionTableBody = document.getElementById('positionTableBody');
+  const positionTableFooter = document.getElementById('positionTableFooter');
+  const totalPnlEl = document.getElementById('totalPnl');
+  const noPositionsMsg = document.getElementById('noPositionsMsg');
+  const endGameBtn = document.getElementById('endGameBtn');
+
+  // Closing overlay elements
+  const closingOverlay = document.getElementById('closingOverlay');
+  const closingTitle = document.getElementById('closingTitle');
+  const closingProgress = document.getElementById('closingProgress');
 
   /* ───────── PerpPlay Mode Functions ───────── */
   function truncateAddress(address) {
@@ -57,6 +59,8 @@ document.addEventListener("DOMContentLoaded", () => {
       disconnectBtn.style.display = 'none';
       if (collateralSection) collateralSection.style.display = 'none';
       if (walletAddressEl) walletAddressEl.style.display = 'none';
+      if (positionTableContainer) positionTableContainer.style.display = 'none';
+      stopPnlUpdates();
     } else {
       freePlayBtn.classList.remove('active');
       perpPlayBtn.classList.add('active');
@@ -69,6 +73,8 @@ document.addEventListener("DOMContentLoaded", () => {
           walletAddressEl.textContent = truncateAddress(connectedWalletAddress);
           walletAddressEl.style.display = 'block';
         }
+        if (positionTableContainer) positionTableContainer.style.display = 'block';
+        startPnlUpdates();
       }
     }
   }
@@ -116,77 +122,141 @@ document.addEventListener("DOMContentLoaded", () => {
     updateModeButtons();
   }
 
-  // Trade popup functions
-  function showTradePopup() {
-    tradePopup.style.display = 'block';
-    tradeResult.style.display = 'none';
-    tradeIcon.textContent = '🚀';
-    tradeTitle.textContent = 'Opening Position...';
-    tradePopupCanClose = false;
-    if (closeTradePopupBtn) closeTradePopupBtn.style.display = 'none';
+  // Trade toast functions
+  function showTradeToast(token, leverage, side, collateral) {
+    if (tradeToastText) {
+      tradeToastText.textContent = `Opening ${token} ${leverage}x ${side} with $${collateral}...`;
+    }
+    if (tradeToast) {
+      tradeToast.style.display = 'block';
+    }
   }
 
-  function hideTradePopup() {
-    tradePopup.style.display = 'none';
-    tradePopupCanClose = false;
+  function hideTradeToast() {
+    if (tradeToast) {
+      tradeToast.style.display = 'none';
+    }
   }
 
-  function updateTradePopup(data) {
-    switch (data.phase) {
-      case 'opening':
-        tradeIcon.textContent = '🚀';
-        tradeTitle.textContent = 'Opening Position...';
-        tradeToken.textContent = data.token;
-        tradeSide.textContent = data.side;
-        tradeSide.className = 'trade-value long';
-        tradeLeverage.textContent = data.leverage + 'x';
-        if (tradeCollateral) tradeCollateral.textContent = '$' + data.collateral;
-        tradeSize.textContent = '-';
-        tradeEntry.textContent = '-';
-        tradeCountdown.textContent = '15';
-        break;
+  // Position table functions
+  async function updatePositionTable() {
+    if (!window.HyperliquidManager || playMode !== 'perpplay') return;
 
-      case 'open':
-        tradeIcon.textContent = '📈';
-        tradeTitle.textContent = 'Position Open!';
-        tradeSize.textContent = data.size.toFixed(6);
-        tradeEntry.textContent = '$' + data.entryPrice.toFixed(2);
-        if (tradeCollateral) tradeCollateral.textContent = '$' + data.collateral;
-        break;
+    try {
+      const positions = await window.HyperliquidManager.getGamePositionsWithPnL();
 
-      case 'countdown':
-        tradeCountdown.textContent = data.secondsRemaining;
-        break;
+      if (!positionTableBody) return;
 
-      case 'closing':
-        tradeIcon.textContent = '⏳';
-        tradeTitle.textContent = 'Closing Position...';
-        tradeCountdown.textContent = '0';
-        break;
+      // Clear existing rows
+      positionTableBody.innerHTML = '';
 
-      case 'closed':
-        tradeIcon.textContent = data.pnlUsd >= 0 ? '🎉' : '😢';
-        tradeTitle.textContent = data.pnlUsd >= 0 ? 'Profit!' : 'Loss';
-        tradeResult.style.display = 'block';
-        tradePnl.textContent = (data.pnlUsd >= 0 ? '+' : '') + '$' + data.pnlUsd.toFixed(2) + ' (' + (data.pnlPercent >= 0 ? '+' : '') + data.pnlPercent.toFixed(2) + '%)';
-        tradePnl.className = 'trade-value ' + (data.pnlUsd >= 0 ? 'profit' : 'loss');
+      if (positions.length === 0) {
+        if (noPositionsMsg) noPositionsMsg.style.display = 'block';
+        if (positionTableFooter) positionTableFooter.style.display = 'none';
+        return;
+      }
 
-        // Show close button and allow closing
-        tradePopupCanClose = true;
-        if (closeTradePopupBtn) closeTradePopupBtn.style.display = 'flex';
-        break;
+      if (noPositionsMsg) noPositionsMsg.style.display = 'none';
 
-      case 'error':
-        tradeIcon.textContent = '❌';
-        tradeTitle.textContent = 'Trade Failed';
-        tradeResult.style.display = 'block';
-        tradePnl.textContent = data.error;
-        tradePnl.className = 'trade-value loss';
+      let totalPnl = 0;
 
-        // Show close button and allow closing
-        tradePopupCanClose = true;
-        if (closeTradePopupBtn) closeTradePopupBtn.style.display = 'flex';
-        break;
+      positions.forEach(pos => {
+        const row = document.createElement('tr');
+
+        const pnlValue = pos.pnlUsd || 0;
+        totalPnl += pnlValue;
+        const pnlClass = pnlValue >= 0 ? 'profit' : 'loss';
+        const pnlSign = pnlValue >= 0 ? '+' : '';
+
+        row.innerHTML = `
+          <td>${pos.tokenName}</td>
+          <td class="${pos.side.toLowerCase()}">${pos.side}</td>
+          <td>${pos.leverage}x</td>
+          <td>$${pos.collateral}</td>
+          <td class="${pnlClass}">${pnlSign}$${pnlValue.toFixed(2)}</td>
+        `;
+
+        positionTableBody.appendChild(row);
+      });
+
+      // Update total P&L footer
+      if (positionTableFooter) positionTableFooter.style.display = 'table-footer-group';
+      if (totalPnlEl) {
+        const totalPnlClass = totalPnl >= 0 ? 'profit' : 'loss';
+        const totalPnlSign = totalPnl >= 0 ? '+' : '';
+        totalPnlEl.textContent = `${totalPnlSign}$${totalPnl.toFixed(2)}`;
+        totalPnlEl.className = `total-pnl ${totalPnlClass}`;
+      }
+    } catch (error) {
+      console.error('Error updating position table:', error);
+    }
+  }
+
+  function startPnlUpdates() {
+    if (pnlUpdateInterval) return; // Already running
+    updatePositionTable(); // Initial update
+    pnlUpdateInterval = setInterval(updatePositionTable, 2000); // Update every 2 seconds
+  }
+
+  function stopPnlUpdates() {
+    if (pnlUpdateInterval) {
+      clearInterval(pnlUpdateInterval);
+      pnlUpdateInterval = null;
+    }
+  }
+
+  // Close all positions and end game
+  async function handleEndGame() {
+    if (!window.HyperliquidManager) return;
+
+    const positions = await window.HyperliquidManager.getGamePositionsWithPnL();
+    if (positions.length === 0) {
+      // No positions to close, just restart
+      startGame();
+      return;
+    }
+
+    // Show closing overlay
+    if (closingOverlay) closingOverlay.style.display = 'flex';
+    if (closingTitle) closingTitle.textContent = 'Closing Positions...';
+    if (closingProgress) closingProgress.textContent = '';
+
+    try {
+      await window.HyperliquidManager.closeAllPositions((progress) => {
+        if (closingProgress) {
+          closingProgress.textContent = `Closing ${progress.current}/${progress.total}: ${progress.token}`;
+        }
+      });
+
+      // Get final P&L
+      const finalPositions = await window.HyperliquidManager.getGamePositionsWithPnL();
+      let totalPnl = 0;
+      positions.forEach(p => totalPnl += (p.pnlUsd || 0));
+
+      if (closingTitle) {
+        const pnlSign = totalPnl >= 0 ? '+' : '';
+        closingTitle.textContent = `Game Over! Final P&L: ${pnlSign}$${totalPnl.toFixed(2)}`;
+      }
+      if (closingProgress) closingProgress.textContent = 'All positions closed';
+
+      // Clear game positions
+      window.HyperliquidManager.clearGamePositions();
+
+      // Hide overlay after 2 seconds and restart
+      setTimeout(() => {
+        if (closingOverlay) closingOverlay.style.display = 'none';
+        startGame();
+        updatePositionTable();
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error closing positions:', error);
+      if (closingTitle) closingTitle.textContent = 'Error closing positions';
+      if (closingProgress) closingProgress.textContent = error.message;
+
+      setTimeout(() => {
+        if (closingOverlay) closingOverlay.style.display = 'none';
+      }, 3000);
     }
   }
 
@@ -202,13 +272,38 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     pendingTrade = true;
-    showTradePopup();
 
     try {
-      await window.HyperliquidManager.executePerpPlayTrade(updateTradePopup, selectedCollateral);
+      // Get random token and side first for the toast
+      const token = await window.HyperliquidManager.getRandomTopToken();
+      if (!token) {
+        console.error('No token available');
+        pendingTrade = false;
+        return;
+      }
+
+      const side = Math.random() < 0.5 ? 'LONG' : 'SHORT';
+      const leverage = Math.min(token.maxLeverage || 20, 20);
+
+      // Show toast with token name
+      showTradeToast(token.name, leverage, side, selectedCollateral);
+
+      // Open the position
+      const result = await window.HyperliquidManager.openPosition(token, selectedCollateral, side);
+
+      // Hide toast after position opens (success or fail)
+      hideTradeToast();
+
+      if (result.success) {
+        console.log(`Position opened: ${token.name} ${side} with $${selectedCollateral}`);
+        // Update position table immediately
+        await updatePositionTable();
+      } else {
+        console.error('Trade failed:', result.error);
+      }
     } catch (error) {
       console.error('Trade execution error:', error);
-      updateTradePopup({ phase: 'error', error: error.message });
+      hideTradeToast();
     }
 
     pendingTrade = false;
@@ -270,22 +365,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Close trade popup button
-  if (closeTradePopupBtn) {
-    closeTradePopupBtn.addEventListener('click', () => {
-      if (tradePopupCanClose) {
-        hideTradePopup();
-      }
-    });
+  // End Game button handler
+  if (endGameBtn) {
+    endGameBtn.addEventListener('click', handleEndGame);
   }
-
-  // Spacebar to close trade popup when allowed
-  document.addEventListener('keydown', (e) => {
-    if (e.code === 'Space' && tradePopupCanClose && tradePopup.style.display !== 'none') {
-      e.preventDefault();
-      hideTradePopup();
-    }
-  });
 
   const yourWinsEl = document.getElementById("yourWins");
   const yourLossesEl = document.getElementById("yourLosses");
@@ -880,7 +963,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* END SHARE CARD CODE */
 
-  function stopGame(won) {
+  async function stopGame(won) {
     awaitingPick = false;
     gameOver = true;
     rollBtn.disabled = true;
@@ -926,8 +1009,58 @@ document.addEventListener("DOMContentLoaded", () => {
       yourLosses++;
       localStorage.setItem("yourLosses", yourLosses);
       yourLossesEl.textContent = yourLosses;
+    }
 
-      /*  👉 Auto-restart three seconds after a loss  */
+    // Close all PerpPlay positions if in that mode
+    if (playMode === 'perpplay' && walletConnected && window.HyperliquidManager) {
+      const positions = await window.HyperliquidManager.getGamePositionsWithPnL();
+      if (positions.length > 0) {
+        // Calculate total P&L before closing
+        let totalPnl = 0;
+        positions.forEach(p => totalPnl += (p.pnlUsd || 0));
+
+        // Show closing overlay
+        if (closingOverlay) closingOverlay.style.display = 'flex';
+        if (closingTitle) closingTitle.textContent = 'Game Over! Closing Positions...';
+        if (closingProgress) closingProgress.textContent = '';
+
+        try {
+          await window.HyperliquidManager.closeAllPositions((progress) => {
+            if (closingProgress) {
+              closingProgress.textContent = `Closing ${progress.current}/${progress.total}: ${progress.token}`;
+            }
+          });
+
+          const pnlSign = totalPnl >= 0 ? '+' : '';
+          if (closingTitle) closingTitle.textContent = `${won ? 'You Won!' : 'Game Over!'} Final P&L: ${pnlSign}$${totalPnl.toFixed(2)}`;
+          if (closingProgress) closingProgress.textContent = 'All positions closed';
+
+          // Clear game positions
+          window.HyperliquidManager.clearGamePositions();
+
+          // Hide overlay and restart after delay
+          setTimeout(() => {
+            if (closingOverlay) closingOverlay.style.display = 'none';
+            if (!won) startGame();
+            updatePositionTable();
+          }, 2500);
+
+        } catch (error) {
+          console.error('Error closing positions:', error);
+          if (closingTitle) closingTitle.textContent = 'Error closing positions';
+          if (closingProgress) closingProgress.textContent = error.message;
+
+          setTimeout(() => {
+            if (closingOverlay) closingOverlay.style.display = 'none';
+            if (!won) startGame();
+          }, 3000);
+        }
+        return; // Don't auto-restart below, handled in timeout
+      }
+    }
+
+    // Standard auto-restart for losses (when not in PerpPlay or no positions)
+    if (!won) {
       setTimeout(startGame, 1900);
     }
   }
@@ -946,6 +1079,12 @@ document.addEventListener("DOMContentLoaded", () => {
     diceResEl.textContent = "";
     drawBoard();
     nelly.currentTime = 0; // allow Nelly to play again
+
+    // Reset position table for PerpPlay mode
+    if (playMode === 'perpplay' && window.HyperliquidManager) {
+      window.HyperliquidManager.clearGamePositions();
+      updatePositionTable();
+    }
   }
 
   /* ───────── mobile ↔ desktop: move the stats table ───────── */
