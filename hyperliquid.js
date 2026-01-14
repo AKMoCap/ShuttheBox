@@ -1,7 +1,7 @@
 // hyperliquid.js - Wallet connection and Hyperliquid trading integration
 // Uses the nomeida/hyperliquid SDK for reliable signing
 
-const HyperliquidManager = (() => {
+window.HyperliquidManager = (() => {
   // Configuration
   const CONFIG = {
     BUILDER_ADDRESS: '0x7b4497c1b70de6546b551bdf8f951da53b71b97d',
