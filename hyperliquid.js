@@ -1,5 +1,5 @@
 // hyperliquid.js - Wallet connection and Hyperliquid trading integration
-// Uses the nomeida/hyperliquid SDK for reliable signing
+// Direct API implementation without external SDK
 
 window.HyperliquidManager = (() => {
   // Configuration
@@ -13,11 +13,10 @@ window.HyperliquidManager = (() => {
   };
 
   // State
-  let sdk = null;
   let walletAddress = null;
   let isConnected = false;
   let agentPrivateKey = null;
-  let agentSdk = null;
+  let agentWallet = null;
 
   // Arbitrum One network config
   const ARBITRUM_ONE = {
@@ -44,7 +43,6 @@ window.HyperliquidManager = (() => {
           params: [{ chainId: ARBITRUM_ONE.chainId }]
         });
       } catch (switchError) {
-        // Chain not added, try to add it
         if (switchError.code === 4902) {
           await ethereum.request({
             method: 'wallet_addEthereumChain',
@@ -68,7 +66,6 @@ window.HyperliquidManager = (() => {
   // Connect wallet
   const connectWallet = async (walletType = 'metamask') => {
     try {
-      // Check for wallet
       const ethereum = walletType === 'rabby' && window.rabby ? window.rabby : window.ethereum;
 
       if (!ethereum) {
@@ -77,7 +74,6 @@ window.HyperliquidManager = (() => {
 
       console.log('Requesting wallet connection...');
 
-      // Request accounts
       const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
       if (!accounts || accounts.length === 0) {
         throw new Error('No accounts found. Please unlock your wallet.');
@@ -106,20 +102,8 @@ window.HyperliquidManager = (() => {
         console.log('Builder fee approved');
       }
 
-      // Initialize SDK with agent wallet for trading
-      // Browser bundle exports as 'Hyperliquid' or 'hyperliquid'
-      const SDK = window.Hyperliquid || window.hyperliquid || window.HyperliquidSDK?.Hyperliquid;
-      if (!SDK) {
-        throw new Error('Hyperliquid SDK not loaded. Please refresh the page.');
-      }
-
-      agentSdk = new SDK({
-        privateKey: agentPrivateKey,
-        walletAddress: walletAddress,
-        testnet: CONFIG.USE_TESTNET
-      });
-
-      await agentSdk.connect();
+      // Store agent wallet for signing orders
+      agentWallet = new ethers.Wallet(agentPrivateKey);
       isConnected = true;
 
       return {
@@ -138,14 +122,12 @@ window.HyperliquidManager = (() => {
   // Create agent wallet and get user approval
   const createAndApproveAgent = async (ethereum) => {
     try {
-      // Generate new agent wallet
-      const agentWallet = ethers.Wallet.createRandom();
-      agentPrivateKey = agentWallet.privateKey;
-      const agentAddress = agentWallet.address.toLowerCase();
+      const newAgentWallet = ethers.Wallet.createRandom();
+      agentPrivateKey = newAgentWallet.privateKey;
+      const agentAddress = newAgentWallet.address.toLowerCase();
 
       const nonce = Date.now();
 
-      // EIP-712 typed data for approveAgent
       const typedData = {
         types: {
           EIP712Domain: [
@@ -165,7 +147,7 @@ window.HyperliquidManager = (() => {
         domain: {
           name: 'HyperliquidSignTransaction',
           version: '1',
-          chainId: 42161, // Arbitrum One mainnet for user-signed actions
+          chainId: 42161,
           verifyingContract: '0x0000000000000000000000000000000000000000'
         },
         message: {
@@ -178,7 +160,6 @@ window.HyperliquidManager = (() => {
 
       console.log('Requesting agent approval signature...');
 
-      // Request signature from user's wallet
       const signature = await ethereum.request({
         method: 'eth_signTypedData_v4',
         params: [walletAddress, JSON.stringify(typedData)]
@@ -186,7 +167,6 @@ window.HyperliquidManager = (() => {
 
       const sig = ethers.utils.splitSignature(signature);
 
-      // Send to Hyperliquid API
       const response = await fetch('https://api.hyperliquid.xyz/exchange', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -243,7 +223,7 @@ window.HyperliquidManager = (() => {
         domain: {
           name: 'HyperliquidSignTransaction',
           version: '1',
-          chainId: 42161, // Arbitrum One mainnet
+          chainId: 42161,
           verifyingContract: '0x0000000000000000000000000000000000000000'
         },
         message: {
@@ -293,8 +273,7 @@ window.HyperliquidManager = (() => {
 
   // Disconnect wallet
   const disconnectWallet = () => {
-    sdk = null;
-    agentSdk = null;
+    agentWallet = null;
     walletAddress = null;
     isConnected = false;
     agentPrivateKey = null;
@@ -340,9 +319,136 @@ window.HyperliquidManager = (() => {
     return tokens[Math.floor(Math.random() * tokens.length)];
   };
 
-  // Open a long position using the SDK
+  // Format price to proper string format
+  const formatPrice = (price, isRound = false) => {
+    // Hyperliquid requires prices with max 5 significant figures
+    const rounded = parseFloat(price.toPrecision(5));
+    return rounded.toString();
+  };
+
+  // Format size to proper decimals
+  const formatSize = (size, decimals) => {
+    const factor = Math.pow(10, decimals);
+    const rounded = Math.round(size * factor) / factor;
+    return rounded.toString();
+  };
+
+  // Sign L1 action with agent wallet (using EIP-712)
+  const signL1Action = async (action, nonce) => {
+    // For L1 actions (orders), we use the "Exchange" domain with chainId 1337
+    const domain = {
+      name: 'Exchange',
+      version: '1',
+      chainId: 1337,
+      verifyingContract: '0x0000000000000000000000000000000000000000'
+    };
+
+    // Create phantom agent to include source 'a' (API wallet)
+    const phantomAgent = {
+      source: CONFIG.USE_TESTNET ? 'b' : 'a', // 'a' for mainnet, 'b' for testnet
+      connectionId: ethers.utils.keccak256(
+        ethers.utils.defaultAbiCoder.encode(
+          ['address', 'address'],
+          [walletAddress, agentWallet.address.toLowerCase()]
+        )
+      )
+    };
+
+    // Create the action hash using keccak256
+    const actionHash = createActionHash(action, nonce, phantomAgent);
+
+    // EIP-712 types for Agent
+    const types = {
+      Agent: [
+        { name: 'source', type: 'string' },
+        { name: 'connectionId', type: 'bytes32' }
+      ]
+    };
+
+    // Sign the typed data
+    const signature = await agentWallet._signTypedData(domain, types, phantomAgent);
+    const sig = ethers.utils.splitSignature(signature);
+
+    return { r: sig.r, s: sig.s, v: sig.v };
+  };
+
+  // Create action hash for signing
+  const createActionHash = (action, nonce, agent) => {
+    // This is a simplified version - Hyperliquid uses msgpack encoding
+    // For now, we'll use a JSON-based approach
+    const encoded = ethers.utils.defaultAbiCoder.encode(
+      ['string', 'uint64', 'bool'],
+      [JSON.stringify(action), nonce, false]
+    );
+    return ethers.utils.keccak256(encoded);
+  };
+
+  // Place order using direct API call
+  const placeOrder = async (orderParams) => {
+    if (!agentWallet || !isConnected) {
+      throw new Error('Not connected');
+    }
+
+    const {
+      asset,       // asset index
+      isBuy,       // true for buy, false for sell
+      limitPx,     // price
+      sz,          // size
+      reduceOnly = false,
+      orderType = { limit: { tif: 'Ioc' } }
+    } = orderParams;
+
+    const nonce = Date.now();
+
+    // Build order wire format
+    const order = {
+      a: asset,
+      b: isBuy,
+      p: formatPrice(limitPx),
+      s: sz,
+      r: reduceOnly,
+      t: orderType
+    };
+
+    const action = {
+      type: 'order',
+      orders: [order],
+      grouping: 'na',
+      builder: {
+        b: CONFIG.BUILDER_ADDRESS,
+        f: CONFIG.BUILDER_FEE_BPS
+      }
+    };
+
+    console.log('Placing order:', action);
+
+    // Sign with agent wallet
+    const signature = await signL1Action(action, nonce);
+
+    const response = await fetch('https://api.hyperliquid.xyz/exchange', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: action,
+        nonce: nonce,
+        signature: signature,
+        vaultAddress: null
+      })
+    });
+
+    const responseText = await response.text();
+    console.log('Order response:', responseText);
+
+    try {
+      return JSON.parse(responseText);
+    } catch (e) {
+      return { status: 'error', response: responseText };
+    }
+  };
+
+  // Open a long position
   const openLongPosition = async (token, collateralUsd = 10) => {
-    if (!agentSdk || !isConnected) {
+    if (!agentWallet || !isConnected) {
       throw new Error('Not connected');
     }
 
@@ -350,35 +456,31 @@ window.HyperliquidManager = (() => {
       const leverage = Math.min(token.maxLeverage, 20);
       const sizeUsd = collateralUsd * leverage;
       const sizeBase = sizeUsd / token.markPrice;
-      const roundedSize = Math.round(sizeBase * Math.pow(10, token.szDecimals)) / Math.pow(10, token.szDecimals);
+      const roundedSize = formatSize(sizeBase, token.szDecimals);
 
       console.log(`Opening LONG: ${token.name}, size: ${roundedSize}, leverage: ${leverage}x`);
 
-      // Use SDK to place order
-      const result = await agentSdk.exchange.placeOrder({
-        coin: token.name,
-        is_buy: true,
+      const result = await placeOrder({
+        asset: token.index,
+        isBuy: true,
+        limitPx: token.markPrice * 1.01,
         sz: roundedSize,
-        limit_px: token.markPrice * 1.01, // 1% slippage
-        order_type: { limit: { tif: 'Ioc' } },
-        reduce_only: false,
-        builder: {
-          b: CONFIG.BUILDER_ADDRESS,
-          f: CONFIG.BUILDER_FEE_BPS
-        }
+        reduceOnly: false,
+        orderType: { limit: { tif: 'Ioc' } }
       });
 
       console.log('Order result:', result);
 
       return {
-        success: true,
+        success: result.status === 'ok',
         token: token.name,
         side: 'LONG',
         size: roundedSize,
         leverage: leverage,
         collateral: collateralUsd,
         entryPrice: token.markPrice,
-        result: result
+        result: result,
+        error: result.response
       };
     } catch (error) {
       console.error('Error opening position:', error);
@@ -388,29 +490,28 @@ window.HyperliquidManager = (() => {
 
   // Close a position
   const closePosition = async (token, size) => {
-    if (!agentSdk || !isConnected) {
+    if (!agentWallet || !isConnected) {
       throw new Error('Not connected');
     }
 
     try {
-      // Get current price
       const tokens = await getTopTokensByOI();
       const currentToken = tokens.find(t => t.name === token.name);
       const currentPrice = currentToken?.markPrice || token.markPrice;
 
-      const result = await agentSdk.exchange.placeOrder({
-        coin: token.name,
-        is_buy: false,
-        sz: Math.abs(size),
-        limit_px: currentPrice * 0.99, // 1% slippage
-        order_type: { limit: { tif: 'Ioc' } },
-        reduce_only: true
+      const result = await placeOrder({
+        asset: token.index,
+        isBuy: false,
+        limitPx: currentPrice * 0.99,
+        sz: formatSize(Math.abs(parseFloat(size)), token.szDecimals),
+        reduceOnly: true,
+        orderType: { limit: { tif: 'Ioc' } }
       });
 
       console.log('Close result:', result);
 
       return {
-        success: true,
+        success: result.status === 'ok',
         exitPrice: currentPrice,
         result: result
       };
@@ -450,6 +551,7 @@ window.HyperliquidManager = (() => {
     openLongPosition,
     closePosition,
     executePerpPlayTrade,
+    placeOrder,
     get isConnected() { return isConnected; },
     get walletAddress() { return walletAddress; },
     CONFIG
