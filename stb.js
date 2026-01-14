@@ -465,7 +465,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const TOTAL_W = COLS * CARD_W + (COLS - 1) * GAP + 6;
   const TOTAL_H = ROWS * CARD_H + (ROWS - 1) * GAP + 6;
   const START_X = Math.round((cvs.width - TOTAL_W) / 2);
-  const START_Y = Math.round((cvs.height - TOTAL_H) / 2) - 40; // shift cards up for roll button
+  const START_Y = Math.round((cvs.height - TOTAL_H) / 2) - 70; // shift cards up for roll button and position table
 
   const SUIT = "♠";
   const FACE = [
