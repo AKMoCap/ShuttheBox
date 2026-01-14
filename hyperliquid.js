@@ -7,9 +7,8 @@ window.HyperliquidManager = (() => {
     BUILDER_ADDRESS: '0x7b4497c1b70de6546b551bdf8f951da53b71b97d',
     BUILDER_FEE_BPS: 50, // 5 basis points in tenths (50 = 5 bps)
     MAX_FEE_RATE: '0.1%',
-    POSITION_CLOSE_DELAY_MS: 15000,
     TOP_TOKENS_COUNT: 50,
-    MIN_OPEN_INTEREST: 1000000, // $1M minimum OI for liquidity
+    MIN_OPEN_INTEREST: 5000000, // $5M minimum OI for liquidity
     USE_TESTNET: false
   };
 
@@ -18,6 +17,7 @@ window.HyperliquidManager = (() => {
   let isConnected = false;
   let agentPrivateKey = null;
   let agentWallet = null;
+  let gamePositions = []; // Track positions opened during current game
 
   // Arbitrum One network config
   const ARBITRUM_ONE = {
@@ -278,6 +278,7 @@ window.HyperliquidManager = (() => {
     walletAddress = null;
     isConnected = false;
     agentPrivateKey = null;
+    gamePositions = [];
     console.log('Wallet disconnected');
   };
 
@@ -303,7 +304,7 @@ window.HyperliquidManager = (() => {
         maxLeverage: asset.maxLeverage || 50
       }));
 
-      // Filter for liquid perp markets only (minimum $1M OI)
+      // Filter for liquid perp markets only (minimum $5M OI)
       return assets
         .filter(a => a.openInterest >= CONFIG.MIN_OPEN_INTEREST && a.markPrice > 0)
         .sort((a, b) => b.openInterest - a.openInterest)
@@ -323,7 +324,6 @@ window.HyperliquidManager = (() => {
 
   // Format price to proper string format
   const formatPrice = (price, isRound = false) => {
-    // Hyperliquid requires prices with max 5 significant figures
     const rounded = parseFloat(price.toPrecision(5));
     return rounded.toString();
   };
@@ -337,42 +337,29 @@ window.HyperliquidManager = (() => {
 
   // Encode action using msgpack (Hyperliquid format)
   const msgpackEncodeAction = (action) => {
-    // Use the global MessagePack from CDN
     const encoded = MessagePack.encode(action);
     return encoded;
   };
 
   // Compute action hash using msgpack encoding
   const computeActionHash = (action, vaultAddress, nonce) => {
-    // Encode action with msgpack
     const actionBytes = msgpackEncodeAction(action);
-
-    // Create the data to hash: actionBytes + nonce (8 bytes) + vaultAddress flag
     const nonceBytes = new Uint8Array(8);
     const view = new DataView(nonceBytes.buffer);
-    view.setBigUint64(0, BigInt(nonce), false); // big-endian
-
-    // vaultAddress is null, so we just use 0 byte
+    view.setBigUint64(0, BigInt(nonce), false);
     const vaultFlag = new Uint8Array([0]);
-
-    // Concatenate: actionBytes + nonceBytes + vaultFlag
     const combined = new Uint8Array(actionBytes.length + nonceBytes.length + vaultFlag.length);
     combined.set(actionBytes, 0);
     combined.set(nonceBytes, actionBytes.length);
     combined.set(vaultFlag, actionBytes.length + nonceBytes.length);
-
-    // Hash with keccak256
     return ethers.utils.keccak256(combined);
   };
 
   // Sign L1 action with agent wallet (using EIP-712)
   const signL1Action = async (action, nonce, vaultAddress = null) => {
-    // Compute the action hash (this is what links the signature to the action)
     const actionHash = computeActionHash(action, vaultAddress, nonce);
-
     console.log('Action hash:', actionHash);
 
-    // For L1 actions (orders), we use the "Exchange" domain with chainId 1337
     const domain = {
       name: 'Exchange',
       version: '1',
@@ -380,16 +367,11 @@ window.HyperliquidManager = (() => {
       verifyingContract: '0x0000000000000000000000000000000000000000'
     };
 
-    // The connectionId is the action hash - this links the signature to this specific action
     const phantomAgent = {
-      source: CONFIG.USE_TESTNET ? 'b' : 'a', // 'a' for mainnet, 'b' for testnet
+      source: CONFIG.USE_TESTNET ? 'b' : 'a',
       connectionId: actionHash
     };
 
-    console.log('Phantom agent:', phantomAgent);
-    console.log('Signing with agent wallet:', agentWallet.address);
-
-    // EIP-712 types for Agent
     const types = {
       Agent: [
         { name: 'source', type: 'string' },
@@ -397,12 +379,8 @@ window.HyperliquidManager = (() => {
       ]
     };
 
-    // Sign the typed data
     const signature = await agentWallet._signTypedData(domain, types, phantomAgent);
     const sig = ethers.utils.splitSignature(signature);
-
-    console.log('Signature:', { r: sig.r, s: sig.s, v: sig.v });
-
     return { r: sig.r, s: sig.s, v: sig.v };
   };
 
@@ -413,17 +391,16 @@ window.HyperliquidManager = (() => {
     }
 
     const {
-      asset,       // asset index
-      isBuy,       // true for buy, false for sell
-      limitPx,     // price
-      sz,          // size
+      asset,
+      isBuy,
+      limitPx,
+      sz,
       reduceOnly = false,
       orderType = { limit: { tif: 'Ioc' } }
     } = orderParams;
 
     const nonce = Date.now();
 
-    // Build order wire format
     const order = {
       a: asset,
       b: isBuy,
@@ -444,8 +421,6 @@ window.HyperliquidManager = (() => {
     };
 
     console.log('Placing order:', action);
-
-    // Sign with agent wallet
     const signature = await signL1Action(action, nonce);
 
     const response = await fetch('https://api.hyperliquid.xyz/exchange', {
@@ -469,24 +444,29 @@ window.HyperliquidManager = (() => {
     }
   };
 
-  // Open a long position
-  const openLongPosition = async (token, collateralUsd = 10) => {
+  // Open a position (Long or Short)
+  const openPosition = async (token, collateralUsd = 10, side = 'LONG') => {
     if (!agentWallet || !isConnected) {
       throw new Error('Not connected');
     }
 
     try {
+      const isBuy = side === 'LONG';
       const leverage = Math.min(token.maxLeverage, 20);
       const sizeUsd = collateralUsd * leverage;
       const sizeBase = sizeUsd / token.markPrice;
       const roundedSize = formatSize(sizeBase, token.szDecimals);
 
-      console.log(`Opening LONG: ${token.name}, size: ${roundedSize}, leverage: ${leverage}x`);
+      // For shorts, sell to open. For longs, buy to open.
+      // Slippage: longs pay higher, shorts pay lower
+      const slippageMultiplier = isBuy ? 1.01 : 0.99;
+
+      console.log(`Opening ${side}: ${token.name}, size: ${roundedSize}, leverage: ${leverage}x`);
 
       const result = await placeOrder({
         asset: token.index,
-        isBuy: true,
-        limitPx: token.markPrice * 1.01,
+        isBuy: isBuy,
+        limitPx: token.markPrice * slippageMultiplier,
         sz: roundedSize,
         reduceOnly: false,
         orderType: { limit: { tif: 'Ioc' } }
@@ -494,48 +474,80 @@ window.HyperliquidManager = (() => {
 
       console.log('Order result:', result);
 
-      return {
-        success: result.status === 'ok',
-        token: token.name,
-        side: 'LONG',
-        size: roundedSize,
-        leverage: leverage,
-        collateral: collateralUsd,
-        entryPrice: token.markPrice,
-        result: result,
-        error: result.response
-      };
+      if (result.status === 'ok') {
+        // Track this position for the game
+        const position = {
+          id: Date.now(),
+          token: token,
+          tokenName: token.name,
+          side: side,
+          size: parseFloat(roundedSize),
+          leverage: leverage,
+          collateral: collateralUsd,
+          entryPrice: token.markPrice,
+          openTime: Date.now()
+        };
+        gamePositions.push(position);
+
+        return {
+          success: true,
+          position: position,
+          result: result
+        };
+      } else {
+        return {
+          success: false,
+          error: result.response || 'Order failed'
+        };
+      }
     } catch (error) {
       console.error('Error opening position:', error);
       return { success: false, error: error.message };
     }
   };
 
-  // Close a position
-  const closePosition = async (token, size) => {
+  // Close a specific position
+  const closePosition = async (position) => {
     if (!agentWallet || !isConnected) {
       throw new Error('Not connected');
     }
 
     try {
+      // Get current price
       const tokens = await getTopTokensByOI();
-      const currentToken = tokens.find(t => t.name === token.name);
-      const currentPrice = currentToken?.markPrice || token.markPrice;
+      const currentToken = tokens.find(t => t.name === position.tokenName);
+      const currentPrice = currentToken?.markPrice || position.entryPrice;
+
+      // To close: sell if long, buy if short
+      const isBuy = position.side === 'SHORT';
+      const slippageMultiplier = isBuy ? 1.01 : 0.99;
 
       const result = await placeOrder({
-        asset: token.index,
-        isBuy: false,
-        limitPx: currentPrice * 0.99,
-        sz: formatSize(Math.abs(parseFloat(size)), token.szDecimals),
+        asset: position.token.index,
+        isBuy: isBuy,
+        limitPx: currentPrice * slippageMultiplier,
+        sz: formatSize(Math.abs(position.size), position.token.szDecimals),
         reduceOnly: true,
         orderType: { limit: { tif: 'Ioc' } }
       });
 
       console.log('Close result:', result);
 
+      // Calculate PnL
+      const priceDiff = currentPrice - position.entryPrice;
+      const pnlUsd = position.side === 'LONG'
+        ? priceDiff * position.size
+        : -priceDiff * position.size;
+      const pnlPercent = (pnlUsd / position.collateral) * 100;
+
+      // Remove from game positions
+      gamePositions = gamePositions.filter(p => p.id !== position.id);
+
       return {
         success: result.status === 'ok',
         exitPrice: currentPrice,
+        pnlUsd: pnlUsd,
+        pnlPercent: pnlPercent,
         result: result
       };
     } catch (error) {
@@ -544,108 +556,122 @@ window.HyperliquidManager = (() => {
     }
   };
 
-  // Execute a PerpPlay trade (open, wait, close)
-  const executePerpPlayTrade = async (statusCallback, collateralUsd = 10) => {
-    try {
-      // Get random token
-      const token = await getRandomTopToken();
-      if (!token) {
-        if (statusCallback) statusCallback({ phase: 'error', error: 'No tokens available' });
-        return { success: false, error: 'No tokens available' };
-      }
+  // Close all game positions
+  const closeAllPositions = async (onProgress) => {
+    const results = [];
+    let totalPnl = 0;
 
-      console.log('Selected token:', token.name, 'price:', token.markPrice);
-
-      // Calculate position details
-      const leverage = Math.min(token.maxLeverage, 20);
-      const sizeUsd = collateralUsd * leverage;
-      const sizeBase = sizeUsd / token.markPrice;
-      const roundedSize = parseFloat(formatSize(sizeBase, token.szDecimals));
-      const entryPrice = token.markPrice;
-
-      // Update UI with opening status
-      if (statusCallback) {
-        statusCallback({
-          phase: 'opening',
-          token: token.name,
-          side: 'LONG',
-          leverage: leverage,
-          collateral: collateralUsd,
-          size: roundedSize,
-          entryPrice: entryPrice
+    for (let i = 0; i < gamePositions.length; i++) {
+      const position = gamePositions[i];
+      if (onProgress) {
+        onProgress({
+          phase: 'closing',
+          current: i + 1,
+          total: gamePositions.length + results.length,
+          token: position.tokenName
         });
       }
 
-      // Open the position
-      const openResult = await openLongPosition(token, collateralUsd);
-      console.log('Open position result:', openResult);
+      const result = await closePosition(position);
+      results.push({
+        token: position.tokenName,
+        side: position.side,
+        pnlUsd: result.pnlUsd || 0,
+        success: result.success
+      });
+      totalPnl += result.pnlUsd || 0;
 
-      if (!openResult.success) {
-        if (statusCallback) statusCallback({ phase: 'error', error: openResult.error || 'Failed to open position' });
-        return openResult;
-      }
-
-      // Update UI with position open status
-      if (statusCallback) {
-        statusCallback({
-          phase: 'open',
-          token: token.name,
-          side: 'LONG',
-          leverage: leverage,
-          collateral: collateralUsd,
-          size: roundedSize,
-          entryPrice: entryPrice
-        });
-      }
-
-      // Start countdown
-      let countdown = CONFIG.POSITION_CLOSE_DELAY_MS / 1000;
-      const countdownInterval = setInterval(() => {
-        countdown--;
-        if (statusCallback) statusCallback({ phase: 'countdown', secondsRemaining: countdown });
-      }, 1000);
-
-      // Wait for position duration
-      await new Promise(resolve => setTimeout(resolve, CONFIG.POSITION_CLOSE_DELAY_MS));
-      clearInterval(countdownInterval);
-
-      // Close the position
-      if (statusCallback) statusCallback({ phase: 'closing' });
-
-      const closeResult = await closePosition(token, roundedSize);
-      console.log('Close position result:', closeResult);
-
-      // Calculate PnL
-      // pnlUsd = price change * position size in base units
-      // pnlPercent = return on collateral (USD PnL / collateral * 100)
-      const exitPrice = closeResult.exitPrice || entryPrice;
-      const pnlUsd = (exitPrice - entryPrice) * roundedSize;
-      const pnlPercent = (pnlUsd / collateralUsd) * 100;
-
-      if (closeResult.success) {
-        if (statusCallback) {
-          statusCallback({
-            phase: 'closed',
-            pnlUsd: pnlUsd,
-            pnlPercent: pnlPercent,
-            exitPrice: exitPrice
-          });
-        }
-      } else {
-        if (statusCallback) statusCallback({ phase: 'error', error: closeResult.error || 'Failed to close position' });
-      }
-
-      return {
-        success: true,
-        token: token,
-        openResult: openResult,
-        closeResult: closeResult
-      };
-    } catch (error) {
-      console.error('PerpPlay trade error:', error);
-      if (statusCallback) statusCallback({ phase: 'error', error: error.message });
-      return { success: false, error: error.message };
+      // Small delay between closes to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
+
+    gamePositions = [];
+
+    if (onProgress) {
+      onProgress({
+        phase: 'complete',
+        totalPnl: totalPnl,
+        results: results
+      });
+    }
+
+    return { totalPnl, results };
+  };
+
+  // Get user's current positions from Hyperliquid API
+  const getUserPositions = async () => {
+    if (!walletAddress) return [];
+
+    try {
+      const response = await fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'clearinghouseState',
+          user: walletAddress
+        })
+      });
+
+      const data = await response.json();
+      return data.assetPositions || [];
+    } catch (error) {
+      console.error('Error fetching user positions:', error);
+      return [];
+    }
+  };
+
+  // Get live P&L for game positions
+  const getGamePositionsWithPnL = async () => {
+    if (gamePositions.length === 0) return [];
+
+    try {
+      // Get current prices
+      const tokens = await getTopTokensByOI();
+
+      return gamePositions.map(pos => {
+        const currentToken = tokens.find(t => t.name === pos.tokenName);
+        const currentPrice = currentToken?.markPrice || pos.entryPrice;
+
+        const priceDiff = currentPrice - pos.entryPrice;
+        const pnlUsd = pos.side === 'LONG'
+          ? priceDiff * pos.size
+          : -priceDiff * pos.size;
+        const pnlPercent = (pnlUsd / pos.collateral) * 100;
+
+        return {
+          ...pos,
+          currentPrice: currentPrice,
+          pnlUsd: pnlUsd,
+          pnlPercent: pnlPercent
+        };
+      });
+    } catch (error) {
+      console.error('Error calculating PnL:', error);
+      return gamePositions;
+    }
+  };
+
+  // Open a random position (called when card is flipped)
+  const openRandomPosition = async (collateralUsd = 10) => {
+    const token = await getRandomTopToken();
+    if (!token) {
+      return { success: false, error: 'No tokens available' };
+    }
+
+    // Random side: Long or Short
+    const side = Math.random() < 0.5 ? 'LONG' : 'SHORT';
+
+    return openPosition(token, collateralUsd, side);
+  };
+
+  // Clear game positions (for new game)
+  const clearGamePositions = () => {
+    gamePositions = [];
+  };
+
+  // Get current game positions count
+  const getGamePositionsCount = () => {
+    return gamePositions.length;
   };
 
   // Public API
@@ -655,12 +681,18 @@ window.HyperliquidManager = (() => {
     disconnectWallet,
     getTopTokensByOI,
     getRandomTopToken,
-    openLongPosition,
+    openPosition,
+    openRandomPosition,
     closePosition,
-    executePerpPlayTrade,
+    closeAllPositions,
+    getUserPositions,
+    getGamePositionsWithPnL,
+    clearGamePositions,
+    getGamePositionsCount,
     placeOrder,
     get isConnected() { return isConnected; },
     get walletAddress() { return walletAddress; },
+    get gamePositions() { return gamePositions; },
     CONFIG
   };
 })();

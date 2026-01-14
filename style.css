@@ -632,6 +632,171 @@ button:not(#rollBtn):hover {
   text-align: center;
 }
 
+/* ───────── Position Table ───────── */
+.position-table-container {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 600px;
+  background: rgba(11, 22, 36, 0.95);
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  padding: 10px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.position-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.end-game-btn {
+  padding: 4px 12px !important;
+  margin: 0 !important;
+  font-size: 0.75rem !important;
+  background: #ef4444 !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 4px !important;
+}
+
+.end-game-btn:hover {
+  background: #dc2626 !important;
+}
+
+.position-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.position-table th {
+  padding: 6px 4px;
+  text-align: center;
+  color: #9ca3af;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(58, 180, 239, 0.3);
+}
+
+.position-table td {
+  padding: 6px 4px;
+  text-align: center;
+  color: #fff;
+  border: none;
+}
+
+.position-table tbody tr:hover {
+  background: rgba(58, 180, 239, 0.1);
+}
+
+.pnl-positive {
+  color: #10b981 !important;
+  font-weight: 600;
+}
+
+.pnl-negative {
+  color: #ef4444 !important;
+  font-weight: 600;
+}
+
+.side-long {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.side-short {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.no-positions-msg {
+  text-align: center;
+  color: #9ca3af;
+  font-size: 0.85rem;
+  padding: 10px;
+}
+
+.total-label {
+  text-align: right;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.total-pnl {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+/* ───────── Trade Toast ───────── */
+.trade-toast {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(11, 22, 36, 0.95);
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  padding: 12px 24px;
+  color: var(--accent);
+  font-size: 1rem;
+  font-weight: 600;
+  z-index: 1002;
+  animation: toastIn 0.3s ease;
+  box-shadow: 0 0 20px rgba(58, 180, 239, 0.4);
+}
+
+@keyframes toastIn {
+  0% {
+    transform: translateX(-50%) translateY(-20px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ───────── Closing Overlay ───────── */
+.closing-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1003;
+}
+
+.closing-content {
+  background: linear-gradient(135deg, #0b1624 0%, #1a2a3d 100%);
+  border: 3px solid var(--accent);
+  border-radius: 16px;
+  padding: 30px 50px;
+  text-align: center;
+}
+
+#closingTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 15px;
+}
+
+#closingProgress {
+  font-size: 1.1rem;
+  color: #9ca3af;
+}
+
 /* ───────── Mobile adjustments for new elements ───────── */
 @media (max-width: 800px) {
   .header-container {
