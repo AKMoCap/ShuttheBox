@@ -333,8 +333,43 @@ window.HyperliquidManager = (() => {
     return rounded.toString();
   };
 
+  // Encode action using msgpack (Hyperliquid format)
+  const msgpackEncodeAction = (action) => {
+    // Use the global MessagePack from CDN
+    const encoded = MessagePack.encode(action);
+    return encoded;
+  };
+
+  // Compute action hash using msgpack encoding
+  const computeActionHash = (action, vaultAddress, nonce) => {
+    // Encode action with msgpack
+    const actionBytes = msgpackEncodeAction(action);
+
+    // Create the data to hash: actionBytes + nonce (8 bytes) + vaultAddress flag
+    const nonceBytes = new Uint8Array(8);
+    const view = new DataView(nonceBytes.buffer);
+    view.setBigUint64(0, BigInt(nonce), false); // big-endian
+
+    // vaultAddress is null, so we just use 0 byte
+    const vaultFlag = new Uint8Array([0]);
+
+    // Concatenate: actionBytes + nonceBytes + vaultFlag
+    const combined = new Uint8Array(actionBytes.length + nonceBytes.length + vaultFlag.length);
+    combined.set(actionBytes, 0);
+    combined.set(nonceBytes, actionBytes.length);
+    combined.set(vaultFlag, actionBytes.length + nonceBytes.length);
+
+    // Hash with keccak256
+    return ethers.utils.keccak256(combined);
+  };
+
   // Sign L1 action with agent wallet (using EIP-712)
-  const signL1Action = async (action, nonce) => {
+  const signL1Action = async (action, nonce, vaultAddress = null) => {
+    // Compute the action hash (this is what links the signature to the action)
+    const actionHash = computeActionHash(action, vaultAddress, nonce);
+
+    console.log('Action hash:', actionHash);
+
     // For L1 actions (orders), we use the "Exchange" domain with chainId 1337
     const domain = {
       name: 'Exchange',
@@ -343,19 +378,14 @@ window.HyperliquidManager = (() => {
       verifyingContract: '0x0000000000000000000000000000000000000000'
     };
 
-    // Create phantom agent to include source 'a' (API wallet)
+    // The connectionId is the action hash - this links the signature to this specific action
     const phantomAgent = {
       source: CONFIG.USE_TESTNET ? 'b' : 'a', // 'a' for mainnet, 'b' for testnet
-      connectionId: ethers.utils.keccak256(
-        ethers.utils.defaultAbiCoder.encode(
-          ['address', 'address'],
-          [walletAddress, agentWallet.address.toLowerCase()]
-        )
-      )
+      connectionId: actionHash
     };
 
-    // Create the action hash using keccak256
-    const actionHash = createActionHash(action, nonce, phantomAgent);
+    console.log('Phantom agent:', phantomAgent);
+    console.log('Signing with agent wallet:', agentWallet.address);
 
     // EIP-712 types for Agent
     const types = {
@@ -369,18 +399,9 @@ window.HyperliquidManager = (() => {
     const signature = await agentWallet._signTypedData(domain, types, phantomAgent);
     const sig = ethers.utils.splitSignature(signature);
 
-    return { r: sig.r, s: sig.s, v: sig.v };
-  };
+    console.log('Signature:', { r: sig.r, s: sig.s, v: sig.v });
 
-  // Create action hash for signing
-  const createActionHash = (action, nonce, agent) => {
-    // This is a simplified version - Hyperliquid uses msgpack encoding
-    // For now, we'll use a JSON-based approach
-    const encoded = ethers.utils.defaultAbiCoder.encode(
-      ['string', 'uint64', 'bool'],
-      [JSON.stringify(action), nonce, false]
-    );
-    return ethers.utils.keccak256(encoded);
+    return { r: sig.r, s: sig.s, v: sig.v };
   };
 
   // Place order using direct API call
