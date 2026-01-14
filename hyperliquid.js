@@ -111,7 +111,13 @@ window.HyperliquidManager = (() => {
       }
 
       // Initialize SDK with agent wallet for trading
-      agentSdk = new HyperliquidSDK.Hyperliquid({
+      // Browser bundle exports as 'Hyperliquid' or 'hyperliquid'
+      const SDK = window.Hyperliquid || window.hyperliquid || window.HyperliquidSDK?.Hyperliquid;
+      if (!SDK) {
+        throw new Error('Hyperliquid SDK not loaded. Please refresh the page.');
+      }
+
+      agentSdk = new SDK({
         privateKey: agentPrivateKey,
         walletAddress: walletAddress,
         testnet: CONFIG.USE_TESTNET
