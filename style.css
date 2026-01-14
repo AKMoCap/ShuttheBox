@@ -756,15 +756,15 @@ button:not(#rollBtn):hover {
 /* ───────── Trade Toast ───────── */
 .trade-toast {
   position: fixed;
-  top: 20%;
+  top: 30%;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(11, 22, 36, 0.95);
   border: 2px solid var(--accent);
   border-radius: 8px;
-  padding: 12px 24px;
+  padding: 10px 20px;
   color: var(--accent);
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   z-index: 1002;
   animation: toastIn 0.3s ease;
