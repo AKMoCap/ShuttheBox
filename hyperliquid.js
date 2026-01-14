@@ -8,7 +8,8 @@ window.HyperliquidManager = (() => {
     BUILDER_FEE_BPS: 50, // 5 basis points in tenths (50 = 5 bps)
     MAX_FEE_RATE: '0.1%',
     POSITION_CLOSE_DELAY_MS: 15000,
-    TOP_TOKENS_COUNT: 25,
+    TOP_TOKENS_COUNT: 50,
+    MIN_OPEN_INTEREST: 1000000, // $1M minimum OI for liquidity
     USE_TESTNET: false
   };
 
@@ -302,8 +303,9 @@ window.HyperliquidManager = (() => {
         maxLeverage: asset.maxLeverage || 50
       }));
 
+      // Filter for liquid perp markets only (minimum $1M OI)
       return assets
-        .filter(a => a.openInterest > 0 && a.markPrice > 0)
+        .filter(a => a.openInterest >= CONFIG.MIN_OPEN_INTEREST && a.markPrice > 0)
         .sort((a, b) => b.openInterest - a.openInterest)
         .slice(0, CONFIG.TOP_TOKENS_COUNT);
     } catch (error) {
@@ -614,9 +616,11 @@ window.HyperliquidManager = (() => {
       console.log('Close position result:', closeResult);
 
       // Calculate PnL
+      // pnlUsd = price change * position size in base units
+      // pnlPercent = return on collateral (USD PnL / collateral * 100)
       const exitPrice = closeResult.exitPrice || entryPrice;
       const pnlUsd = (exitPrice - entryPrice) * roundedSize;
-      const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100 * leverage;
+      const pnlPercent = (pnlUsd / collateralUsd) * 100;
 
       if (closeResult.success) {
         if (statusCallback) {
