@@ -874,7 +874,8 @@ button:not(#rollBtn):hover {
     width: 95%;
     max-width: 100%;
     max-height: 120px;
-    margin-top: 10px;
+    margin-top: 8px;
+    margin-bottom: 0;
   }
 
   /* Mobile: Move position table outside canvas area */
@@ -884,11 +885,82 @@ button:not(#rollBtn):hover {
     align-items: center;
   }
 
-  .collateral-roll-label {
-    margin-top: 8px;
+  /* Mobile: Collateral section appears right after position table */
+  .collateral-section {
+    padding: 8px 0;
+    margin-bottom: 0;
+  }
+
+  .collateral-label {
+    font-size: 1rem;
+    margin-bottom: 2px;
   }
 
   .user-balance {
-    margin-bottom: 12px;
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+  }
+
+  .collateral-roll-label {
+    font-size: 1rem;
+    margin-top: 0;
+    margin-bottom: 6px;
+  }
+
+  .collateral-buttons {
+    gap: 6px;
+  }
+
+  .collateral-btn {
+    padding: 5px 8px;
+    font-size: 0.8rem;
+  }
+
+  /* Mobile: Reduce spacing for odds */
+  #immediateOddsDisplay {
+    padding: 8px 0 !important;
+  }
+
+  .odds-label {
+    font-size: 1.1rem;
+  }
+
+  .odds-value {
+    font-size: 1.1rem;
+  }
+
+  /* Mobile: tighten up scoreBar and controls */
+  #scoreBar {
+    margin-top: 8px !important;
+    margin-bottom: 2px !important;
+  }
+
+  #controls {
+    margin-bottom: 4px;
+    font-size: 1rem;
+    gap: 12px;
+  }
+
+  /* Mobile: reduce stats section spacing */
+  #statsSection {
+    margin-top: 8px;
+  }
+
+  #statsSection td {
+    padding: 2px 6px;
+    font-size: 0.9rem;
+  }
+
+  /* Mobile: reduce instruction spacing */
+  #instructions {
+    margin: 12px auto;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+  }
+
+  /* Mobile: reduce button spacing */
+  button:not(#rollBtn) {
+    margin-top: 6px;
+    padding: 6px 14px;
   }
 }

@@ -1172,29 +1172,55 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  /* ───────── mobile ↔ desktop: move the stats table ───────── */
-  function relocateStatsSection() {
+  /* ───────── mobile ↔ desktop: move elements for optimal layout ───────── */
+  function relocateMobileElements() {
     const stats = document.getElementById("statsSection");
-    const instr = document.getElementById("instructions"); // instructions box
-    const sidebar = document.querySelector(".right-container"); // desktop sidebar
+    const instr = document.getElementById("instructions");
+    const sidebar = document.querySelector(".right-container");
+    const boardWrap = document.getElementById("boardWrap");
+    const collateralSection = document.getElementById("collateralSection");
+    const oddsDisplay = document.getElementById("immediateOddsDisplay");
+    const scoreBar = document.getElementById("scoreBar");
+    const controls = document.getElementById("controls");
 
     if (!stats) return; // safety guard
 
     if (window.innerWidth <= 800) {
-      /* ---- mobile: put stats *after* the instructions ---- */
-      if (instr && instr.nextSibling !== stats) {
-        instr.parentNode.insertBefore(stats, instr.nextSibling);
+      /* ---- mobile layout reordering ---- */
+
+      // Move collateral section right after boardWrap (which contains position table)
+      if (collateralSection && boardWrap && boardWrap.nextSibling !== collateralSection) {
+        boardWrap.parentNode.insertBefore(collateralSection, boardWrap.nextSibling);
+      }
+
+      // Move odds display after the dice controls
+      if (oddsDisplay && controls && controls.nextSibling !== oddsDisplay) {
+        controls.parentNode.insertBefore(oddsDisplay, controls.nextSibling);
+      }
+
+      // Move stats after odds display
+      if (stats && oddsDisplay && oddsDisplay.nextSibling !== stats) {
+        oddsDisplay.parentNode.insertBefore(stats, oddsDisplay.nextSibling);
       }
     } else {
-      /* ---- desktop: snap it back into the sidebar ---- */
-      if (sidebar && !sidebar.contains(stats)) {
-        sidebar.appendChild(stats);
+      /* ---- desktop: snap everything back into the sidebar ---- */
+      if (sidebar) {
+        // Restore order: odds, collateral, stats
+        if (oddsDisplay && !sidebar.contains(oddsDisplay)) {
+          sidebar.insertBefore(oddsDisplay, sidebar.firstChild);
+        }
+        if (collateralSection && !sidebar.contains(collateralSection)) {
+          sidebar.insertBefore(collateralSection, oddsDisplay ? oddsDisplay.nextSibling : sidebar.firstChild);
+        }
+        if (stats && !sidebar.contains(stats)) {
+          sidebar.appendChild(stats);
+        }
       }
     }
   }
 
-  window.addEventListener("resize", relocateStatsSection);
-  relocateStatsSection(); // run once on load
+  window.addEventListener("resize", relocateMobileElements);
+  relocateMobileElements(); // run once on load
 
   /* ───────── Auto-reconnect wallet on page load ───────── */
   async function tryAutoReconnect() {
