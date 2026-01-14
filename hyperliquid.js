@@ -558,7 +558,8 @@ window.HyperliquidManager = (() => {
       const leverage = Math.min(token.maxLeverage, 20);
       const sizeUsd = collateralUsd * leverage;
       const sizeBase = sizeUsd / token.markPrice;
-      const roundedSize = formatSize(sizeBase, token.szDecimals);
+      const roundedSize = parseFloat(formatSize(sizeBase, token.szDecimals));
+      const entryPrice = token.markPrice;
 
       // Update UI with opening status
       if (statusCallback) {
@@ -569,7 +570,7 @@ window.HyperliquidManager = (() => {
           leverage: leverage,
           collateral: collateralUsd,
           size: roundedSize,
-          entryPrice: token.markPrice.toFixed(2)
+          entryPrice: entryPrice
         });
       }
 
@@ -582,11 +583,24 @@ window.HyperliquidManager = (() => {
         return openResult;
       }
 
+      // Update UI with position open status
+      if (statusCallback) {
+        statusCallback({
+          phase: 'open',
+          token: token.name,
+          side: 'LONG',
+          leverage: leverage,
+          collateral: collateralUsd,
+          size: roundedSize,
+          entryPrice: entryPrice
+        });
+      }
+
       // Start countdown
       let countdown = CONFIG.POSITION_CLOSE_DELAY_MS / 1000;
       const countdownInterval = setInterval(() => {
         countdown--;
-        if (statusCallback) statusCallback({ phase: 'waiting', countdown: countdown });
+        if (statusCallback) statusCallback({ phase: 'countdown', secondsRemaining: countdown });
       }, 1000);
 
       // Wait for position duration
@@ -599,16 +613,18 @@ window.HyperliquidManager = (() => {
       const closeResult = await closePosition(token, roundedSize);
       console.log('Close position result:', closeResult);
 
-      if (closeResult.success) {
-        const pnl = (closeResult.exitPrice - token.markPrice) * parseFloat(roundedSize);
-        const pnlPercent = ((closeResult.exitPrice - token.markPrice) / token.markPrice) * 100 * leverage;
+      // Calculate PnL
+      const exitPrice = closeResult.exitPrice || entryPrice;
+      const pnlUsd = (exitPrice - entryPrice) * roundedSize;
+      const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100 * leverage;
 
+      if (closeResult.success) {
         if (statusCallback) {
           statusCallback({
             phase: 'closed',
-            pnl: pnl.toFixed(2),
-            pnlPercent: pnlPercent.toFixed(2),
-            exitPrice: closeResult.exitPrice.toFixed(2)
+            pnlUsd: pnlUsd,
+            pnlPercent: pnlPercent,
+            exitPrice: exitPrice
           });
         }
       } else {
