@@ -609,9 +609,9 @@ const HyperliquidManager = (() => {
     const connectionId = computeActionHash(action, nonce, null);
     console.log('ConnectionId (action hash):', connectionId);
 
-    // For L1 actions (orders), chainId is always 1337
+    // For L1 actions (orders), domain name is "Exchange" and chainId is 1337
     const domain = {
-      name: 'HyperliquidSignTransaction',
+      name: 'Exchange',
       version: '1',
       chainId: CONFIG.L1_CHAIN_ID,
       verifyingContract: '0x0000000000000000000000000000000000000000'
