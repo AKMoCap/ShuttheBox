@@ -12,6 +12,10 @@ const HyperliquidManager = (() => {
     USE_TESTNET: false
   };
 
+  // Helper to get correct chain ID based on network
+  const getUserSignedChainId = () => CONFIG.USE_TESTNET ? CONFIG.TESTNET_USER_SIGNED_CHAIN_ID : CONFIG.MAINNET_USER_SIGNED_CHAIN_ID;
+  const getUserSignedChainIdHex = () => CONFIG.USE_TESTNET ? CONFIG.TESTNET_USER_SIGNED_CHAIN_ID_HEX : CONFIG.MAINNET_USER_SIGNED_CHAIN_ID_HEX;
+
   // State
   let sdk = null;
   let walletAddress = null;
