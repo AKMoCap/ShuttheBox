@@ -75,7 +75,7 @@ h1 {
 /* dice result in the top‑center of the board */
 #diceResult {
   position: absolute;
-  top: 10%;
+  top: 5%;
   left: 50%;
   transform: translateX(-50%);
   font-weight: 800;
@@ -87,7 +87,7 @@ h1 {
 /* roll button just below the cards */
 #rollBtn.primary {
   position: absolute;
-  top: 65%;
+  top: 62%;
   /* tweak this value to move the button up/down */
   left: 50%;
   transform: translateX(-50%);
@@ -224,7 +224,7 @@ button:not(#rollBtn):hover {
   }
 
   #rollBtn.primary {
-    top: 62%;
+    top: 58%;
   }
 
   /* ─── restore your space.png backdrop on mobile ─── */

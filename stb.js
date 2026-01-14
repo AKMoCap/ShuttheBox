@@ -27,6 +27,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const collateralBtns = document.querySelectorAll('.collateral-btn');
   let connectedWalletAddress = null;
 
+  // Signature hint element
+  const signatureHint = document.getElementById('signatureHint');
+
   // Trade toast elements
   const tradeToast = document.getElementById('tradeToast');
   const tradeToastText = document.getElementById('tradeToastText');
@@ -59,6 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
       disconnectBtn.style.display = 'none';
       if (collateralSection) collateralSection.style.display = 'none';
       if (walletAddressEl) walletAddressEl.style.display = 'none';
+      if (signatureHint) signatureHint.style.display = 'none';
       if (positionTableContainer) positionTableContainer.style.display = 'none';
       stopPnlUpdates();
     } else {
@@ -73,8 +77,13 @@ document.addEventListener("DOMContentLoaded", () => {
           walletAddressEl.textContent = truncateAddress(connectedWalletAddress);
           walletAddressEl.style.display = 'block';
         }
+        if (signatureHint) signatureHint.style.display = 'none';
         if (positionTableContainer) positionTableContainer.style.display = 'block';
         startPnlUpdates();
+      } else {
+        // Not connected yet - show signature hint
+        if (signatureHint) signatureHint.style.display = 'block';
+        if (walletAddressEl) walletAddressEl.style.display = 'none';
       }
     }
   }
@@ -456,7 +465,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const TOTAL_W = COLS * CARD_W + (COLS - 1) * GAP + 6;
   const TOTAL_H = ROWS * CARD_H + (ROWS - 1) * GAP + 6;
   const START_X = Math.round((cvs.width - TOTAL_W) / 2);
-  const START_Y = Math.round((cvs.height - TOTAL_H) / 2);
+  const START_Y = Math.round((cvs.height - TOTAL_H) / 2) - 40; // shift cards up for roll button
 
   const SUIT = "♠";
   const FACE = [
