@@ -56,6 +56,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const closingTitle = document.getElementById('closingTitle');
   const closingProgress = document.getElementById('closingProgress');
 
+  // End game modal elements
+  const endGameModal = document.getElementById('endGameModal');
+  const endGameTitle = document.getElementById('endGameTitle');
+  const endGameSubtitle = document.getElementById('endGameSubtitle');
+  const endGamePositionsList = document.getElementById('endGamePositionsList');
+  const endGameTotalPnl = document.getElementById('endGameTotalPnl');
+  const closeAllPositionsBtn = document.getElementById('closeAllPositionsBtn');
+  const keepSelectedBtn = document.getElementById('keepSelectedBtn');
+
+  // Track positions to keep for next game
+  let positionsToKeep = [];
+  // Track if end game modal was triggered by game end (requires stats recording)
+  let endGameModalContext = { recordStats: false, won: false };
+
   /* ───────── PerpPlay Mode Functions ───────── */
   function truncateAddress(address) {
     if (!address) return '';
@@ -271,50 +285,151 @@ document.addEventListener("DOMContentLoaded", () => {
     currentUserBalance = 0;
   }
 
-  // Close all positions and end game
-  async function handleEndGame() {
-    if (!window.HyperliquidManager) return;
+  // Show end game modal with position checkboxes
+  async function showEndGameModal(title = 'Game Over!', isWin = false) {
+    if (!window.HyperliquidManager) return false;
 
     const positions = await window.HyperliquidManager.getGamePositionsWithPnL();
     if (positions.length === 0) {
-      // No positions to close, just restart
+      return false; // No positions to show
+    }
+
+    // Set modal title
+    if (endGameTitle) endGameTitle.textContent = title;
+    if (endGameSubtitle) {
+      endGameSubtitle.textContent = isWin
+        ? 'Congrats! Choose which positions to close:'
+        : 'Choose which positions to close:';
+    }
+
+    // Build positions list with checkboxes
+    if (endGamePositionsList) {
+      endGamePositionsList.innerHTML = '';
+      let totalPnl = 0;
+
+      positions.forEach((pos, index) => {
+        const pnl = pos.pnlUsd || 0;
+        totalPnl += pnl;
+
+        const item = document.createElement('div');
+        item.className = 'end-game-position-item';
+
+        const sideClass = pos.side === 'LONG' ? 'position-side-long' : 'position-side-short';
+        const pnlClass = pnl >= 0 ? 'positive' : 'negative';
+        const pnlSign = pnl >= 0 ? '+' : '';
+
+        item.innerHTML = `
+          <label>
+            <input type="checkbox" checked data-index="${index}" data-token="${pos.token}">
+            <div class="position-info">
+              <span class="position-token">${pos.token}</span>
+              <span class="position-details">
+                <span class="${sideClass}">${pos.side}</span> ${pos.leverage}x | $${pos.collateral?.toFixed(2) || '0.00'}
+              </span>
+            </div>
+          </label>
+          <span class="position-pnl ${pnlClass}">${pnlSign}$${pnl.toFixed(2)}</span>
+        `;
+        endGamePositionsList.appendChild(item);
+      });
+
+      // Update total P&L
+      if (endGameTotalPnl) {
+        const pnlClass = totalPnl >= 0 ? 'positive' : 'negative';
+        const pnlSign = totalPnl >= 0 ? '+' : '';
+        endGameTotalPnl.textContent = `${pnlSign}$${totalPnl.toFixed(2)}`;
+        endGameTotalPnl.className = pnlClass;
+      }
+    }
+
+    // Show modal
+    if (endGameModal) endGameModal.style.display = 'flex';
+    return true;
+  }
+
+  // Hide end game modal
+  function hideEndGameModal() {
+    if (endGameModal) endGameModal.style.display = 'none';
+  }
+
+  // Close selected positions (checked ones)
+  async function closeSelectedPositions(recordStats = false, won = false) {
+    if (!window.HyperliquidManager) return;
+
+    // Get checked checkboxes
+    const checkboxes = endGamePositionsList?.querySelectorAll('input[type="checkbox"]:checked') || [];
+    const indicesToClose = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index));
+
+    const positions = await window.HyperliquidManager.getGamePositionsWithPnL();
+
+    // Get positions to close and positions to keep
+    const toClose = positions.filter((_, i) => indicesToClose.includes(i));
+    positionsToKeep = positions.filter((_, i) => !indicesToClose.includes(i));
+
+    hideEndGameModal();
+
+    if (toClose.length === 0) {
+      // Nothing to close, just start new game with kept positions
+      window.HyperliquidManager.clearGamePositions();
+      // Re-add kept positions
+      positionsToKeep.forEach(pos => {
+        window.HyperliquidManager.gamePositions.push(pos);
+      });
+      if (recordStats) {
+        const totalPnl = positions.reduce((sum, p) => sum + (p.pnlUsd || 0), 0);
+        await recordPerpPlayResult(won, currentGameVolume, totalPnl);
+        currentGameVolume = 0;
+        currentGamePnl = 0;
+      }
       startGame();
+      updatePositionTable();
       return;
     }
 
-    // Show closing overlay with brief delay before starting
+    // Show closing overlay
     if (closingOverlay) closingOverlay.style.display = 'flex';
-    if (closingTitle) closingTitle.textContent = 'Ending Game...';
-    if (closingProgress) closingProgress.textContent = 'Preparing to close positions...';
-
-    // Wait 1.5 seconds before closing positions
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
     if (closingTitle) closingTitle.textContent = 'Closing Positions...';
     if (closingProgress) closingProgress.textContent = '';
 
+    let closedPnl = 0;
     try {
-      await window.HyperliquidManager.closeAllPositions((progress) => {
+      // Close selected positions one by one
+      for (let i = 0; i < toClose.length; i++) {
+        const pos = toClose[i];
         if (closingProgress) {
-          closingProgress.textContent = `Closing ${progress.current}/${progress.total}: ${progress.token}`;
+          closingProgress.textContent = `Closing ${i + 1}/${toClose.length}: ${pos.token}`;
         }
+        const result = await window.HyperliquidManager.closePosition(pos);
+        if (result.success) {
+          closedPnl += (result.pnlUsd || 0);
+        }
+      }
+
+      // Clear all game positions
+      window.HyperliquidManager.clearGamePositions();
+      // Re-add kept positions
+      positionsToKeep.forEach(pos => {
+        window.HyperliquidManager.gamePositions.push(pos);
       });
 
-      // Get final P&L
-      const finalPositions = await window.HyperliquidManager.getGamePositionsWithPnL();
-      let totalPnl = 0;
-      positions.forEach(p => totalPnl += (p.pnlUsd || 0));
-
+      const keptCount = positionsToKeep.length;
       if (closingTitle) {
-        const pnlSign = totalPnl >= 0 ? '+' : '';
-        closingTitle.textContent = `Game Over! Final P&L: ${pnlSign}$${totalPnl.toFixed(2)}`;
+        const pnlSign = closedPnl >= 0 ? '+' : '';
+        closingTitle.textContent = keptCount > 0
+          ? `Closed P&L: ${pnlSign}$${closedPnl.toFixed(2)} | Keeping ${keptCount} position${keptCount > 1 ? 's' : ''}`
+          : `Final P&L: ${pnlSign}$${closedPnl.toFixed(2)}`;
       }
-      if (closingProgress) closingProgress.textContent = 'All positions closed';
+      if (closingProgress) closingProgress.textContent = 'Done!';
 
-      // Clear game positions
-      window.HyperliquidManager.clearGamePositions();
+      // Record stats if needed
+      if (recordStats) {
+        const totalPnl = positions.reduce((sum, p) => sum + (p.pnlUsd || 0), 0);
+        await recordPerpPlayResult(won, currentGameVolume, totalPnl);
+        currentGameVolume = 0;
+        currentGamePnl = 0;
+      }
 
-      // Hide overlay after 2 seconds and restart
+      // Hide overlay and restart
       setTimeout(() => {
         if (closingOverlay) closingOverlay.style.display = 'none';
         startGame();
@@ -325,11 +440,25 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error('Error closing positions:', error);
       if (closingTitle) closingTitle.textContent = 'Error closing positions';
       if (closingProgress) closingProgress.textContent = error.message;
-
       setTimeout(() => {
         if (closingOverlay) closingOverlay.style.display = 'none';
       }, 3000);
     }
+  }
+
+  // Handle end game button click - show modal instead of immediate close
+  async function handleEndGame() {
+    if (!window.HyperliquidManager) return;
+
+    // End Game button doesn't record stats (manual end)
+    endGameModalContext = { recordStats: false, won: false };
+
+    const hasPositions = await showEndGameModal('End Game', false);
+    if (!hasPositions) {
+      // No positions, just restart
+      startGame();
+    }
+    // If positions exist, modal is now showing and user will choose
   }
 
   // Execute PerpPlay trade
@@ -363,7 +492,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      const side = Math.random() < 0.5 ? 'LONG' : 'SHORT';
+      // 75% Long, 25% Short
+      const side = Math.random() < 0.75 ? 'LONG' : 'SHORT';
       const leverage = Math.min(token.maxLeverage || 20, 20);
 
       // Show toast with token name
@@ -453,6 +583,23 @@ document.addEventListener("DOMContentLoaded", () => {
   // End Game button handler
   if (endGameBtn) {
     endGameBtn.addEventListener('click', handleEndGame);
+  }
+
+  // End Game Modal button handlers
+  if (closeAllPositionsBtn) {
+    closeAllPositionsBtn.addEventListener('click', () => {
+      // Check all checkboxes and close all
+      const checkboxes = endGamePositionsList?.querySelectorAll('input[type="checkbox"]') || [];
+      checkboxes.forEach(cb => cb.checked = true);
+      closeSelectedPositions(endGameModalContext.recordStats, endGameModalContext.won);
+    });
+  }
+
+  if (keepSelectedBtn) {
+    keepSelectedBtn.addEventListener('click', () => {
+      // Close only checked positions, keep unchecked ones
+      closeSelectedPositions(endGameModalContext.recordStats, endGameModalContext.won);
+    });
   }
 
   // Stats Modal Elements
@@ -1222,58 +1369,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (playMode === 'perpplay' && walletConnected && window.HyperliquidManager) {
       const positions = await window.HyperliquidManager.getGamePositionsWithPnL();
       if (positions.length > 0) {
-        // Calculate total P&L before closing
-        let totalPnl = 0;
-        positions.forEach(p => totalPnl += (p.pnlUsd || 0));
+        // Set context for modal button handlers
+        endGameModalContext = { recordStats: true, won: won };
 
-        // Show closing overlay with brief delay
-        if (closingOverlay) closingOverlay.style.display = 'flex';
-        if (closingTitle) closingTitle.textContent = won ? 'You Won!' : 'Game Over!';
-        if (closingProgress) closingProgress.textContent = 'Preparing to close positions...';
+        // Show end game modal with position selection
+        const modalTitle = won ? 'You Won!' : 'Game Over!';
+        await showEndGameModal(modalTitle, won);
 
-        // Wait 1.5 seconds before closing positions
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        if (closingTitle) closingTitle.textContent = 'Closing Positions...';
-        if (closingProgress) closingProgress.textContent = '';
-
-        try {
-          await window.HyperliquidManager.closeAllPositions((progress) => {
-            if (closingProgress) {
-              closingProgress.textContent = `Closing ${progress.current}/${progress.total}: ${progress.token}`;
-            }
-          });
-
-          const pnlSign = totalPnl >= 0 ? '+' : '';
-          if (closingTitle) closingTitle.textContent = `${won ? 'You Won!' : 'Game Over!'} Final P&L: ${pnlSign}$${totalPnl.toFixed(2)}`;
-          if (closingProgress) closingProgress.textContent = 'All positions closed';
-
-          // Record PerpPlay stats
-          await recordPerpPlayResult(won, currentGameVolume, totalPnl);
-
-          // Clear game positions and reset tracking
-          window.HyperliquidManager.clearGamePositions();
-          currentGameVolume = 0;
-          currentGamePnl = 0;
-
-          // Hide overlay and restart after delay
-          setTimeout(() => {
-            if (closingOverlay) closingOverlay.style.display = 'none';
-            if (!won) startGame();
-            updatePositionTable();
-          }, 2500);
-
-        } catch (error) {
-          console.error('Error closing positions:', error);
-          if (closingTitle) closingTitle.textContent = 'Error closing positions';
-          if (closingProgress) closingProgress.textContent = error.message;
-
-          setTimeout(() => {
-            if (closingOverlay) closingOverlay.style.display = 'none';
-            if (!won) startGame();
-          }, 3000);
-        }
-        return; // Don't auto-restart below, handled in timeout
+        return; // Don't auto-restart, handled by modal buttons
       } else {
         // PerpPlay mode but no positions - still record stats (with 0 volume/pnl)
         await recordPerpPlayResult(won, currentGameVolume, 0);
