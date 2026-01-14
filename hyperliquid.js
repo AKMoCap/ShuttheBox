@@ -815,13 +815,26 @@ window.HyperliquidManager = (() => {
       });
 
       const data = await response.json();
+      console.log('Balance API response:', data);
+
       // withdrawable is the available balance for new positions
       const withdrawable = parseFloat(data.withdrawable || '0');
+      // accountValue is total equity
       const accountValue = parseFloat(data.marginSummary?.accountValue || '0');
+      // crossMarginSummary might have the balance for cross margin accounts
+      const crossAccountValue = parseFloat(data.crossMarginSummary?.accountValue || '0');
+
+      // Use the higher of accountValue or crossAccountValue
+      const totalValue = Math.max(accountValue, crossAccountValue);
+      // For available balance, use withdrawable, but if it's 0 and we have account value,
+      // it might be a display issue - fall back to accountValue
+      const available = withdrawable > 0 ? withdrawable : totalValue;
+
+      console.log('Balance parsed:', { withdrawable, accountValue, crossAccountValue, available });
 
       return {
-        available: withdrawable,
-        accountValue: accountValue
+        available: available,
+        accountValue: totalValue
       };
     } catch (error) {
       console.error('Error fetching user balance:', error);
