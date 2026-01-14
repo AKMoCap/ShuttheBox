@@ -460,20 +460,35 @@ window.HyperliquidManager = (() => {
       const meta = data[0];
       const contexts = data[1];
 
-      const assets = meta.universe.map((asset, index) => ({
-        name: asset.name,
-        index: index,
-        szDecimals: asset.szDecimals,
-        openInterest: parseFloat(contexts[index]?.openInterest || '0'),
-        markPrice: parseFloat(contexts[index]?.markPx || '0'),
-        maxLeverage: asset.maxLeverage || 50
-      }));
+      const assets = meta.universe.map((asset, index) => {
+        const markPrice = parseFloat(contexts[index]?.markPx || '0');
+        const openInterestCoins = parseFloat(contexts[index]?.openInterest || '0');
+        // Convert OI from coins to USD
+        const openInterestUsd = openInterestCoins * markPrice;
 
-      // Filter for liquid perp markets only (minimum $5M OI)
-      return assets
+        return {
+          name: asset.name,
+          index: index,
+          szDecimals: asset.szDecimals,
+          openInterest: openInterestUsd,
+          openInterestCoins: openInterestCoins,
+          markPrice: markPrice,
+          maxLeverage: asset.maxLeverage || 50
+        };
+      });
+
+      // Filter for liquid perp markets only (minimum $5M OI in USD)
+      const filtered = assets
         .filter(a => a.openInterest >= CONFIG.MIN_OPEN_INTEREST && a.markPrice > 0)
         .sort((a, b) => b.openInterest - a.openInterest)
         .slice(0, CONFIG.TOP_TOKENS_COUNT);
+
+      console.log(`Token filter: ${filtered.length} tokens with >$${CONFIG.MIN_OPEN_INTEREST / 1000000}M OI`);
+      if (filtered.length > 0) {
+        console.log('Top 5:', filtered.slice(0, 5).map(t => `${t.name}: $${(t.openInterest / 1000000).toFixed(1)}M`));
+      }
+
+      return filtered;
     } catch (error) {
       console.error('Error fetching tokens:', error);
       return [];
