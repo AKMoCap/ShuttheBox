@@ -455,113 +455,54 @@ const HyperliquidManager = (() => {
     return Date.now();
   };
 
-  // Simple msgpack encoder for Hyperliquid actions
-  const msgpackEncode = (obj) => {
-    const encodeValue = (val) => {
-      if (val === null || val === undefined) {
-        return new Uint8Array([0xc0]); // nil
-      }
-      if (typeof val === 'boolean') {
-        return new Uint8Array([val ? 0xc3 : 0xc2]);
-      }
-      if (typeof val === 'number') {
-        if (Number.isInteger(val)) {
-          if (val >= 0 && val <= 127) {
-            return new Uint8Array([val]); // positive fixint
-          }
-          if (val >= 0 && val <= 255) {
-            return new Uint8Array([0xcc, val]); // uint8
-          }
-          if (val >= 0 && val <= 65535) {
-            const buf = new Uint8Array(3);
-            buf[0] = 0xcd; // uint16
-            buf[1] = (val >> 8) & 0xff;
-            buf[2] = val & 0xff;
-            return buf;
-          }
-          if (val >= 0 && val <= 0xffffffff) {
-            const buf = new Uint8Array(5);
-            buf[0] = 0xce; // uint32
-            buf[1] = (val >> 24) & 0xff;
-            buf[2] = (val >> 16) & 0xff;
-            buf[3] = (val >> 8) & 0xff;
-            buf[4] = val & 0xff;
-            return buf;
-          }
-        }
-        // For floats or large numbers, encode as string
-        const str = val.toString();
-        return encodeValue(str);
-      }
-      if (typeof val === 'string') {
-        const encoder = new TextEncoder();
-        const strBytes = encoder.encode(val);
-        const len = strBytes.length;
-        let header;
-        if (len <= 31) {
-          header = new Uint8Array([0xa0 | len]); // fixstr
-        } else if (len <= 255) {
-          header = new Uint8Array([0xd9, len]); // str8
+  // Remove trailing zeros from a numeric string (required by Hyperliquid API)
+  const removeTrailingZeros = (str) => {
+    if (typeof str !== 'string') return str;
+    if (!str.includes('.')) return str;
+
+    // Remove trailing zeros after decimal point
+    let result = str.replace(/\.?0+$/, '');
+
+    // Handle edge case of "-0" -> "0"
+    if (result === '-0' || result === '-') result = '0';
+
+    // If we removed the decimal point entirely but string is empty, return "0"
+    if (result === '' || result === '.') result = '0';
+
+    return result;
+  };
+
+  // Recursively normalize an action by removing trailing zeros from 'p' and 's' fields
+  const normalizeTrailingZeros = (obj) => {
+    if (Array.isArray(obj)) {
+      return obj.map(normalizeTrailingZeros);
+    }
+    if (obj !== null && typeof obj === 'object') {
+      const result = {};
+      for (const key of Object.keys(obj)) {
+        const value = obj[key];
+        if ((key === 'p' || key === 's') && typeof value === 'string') {
+          result[key] = removeTrailingZeros(value);
         } else {
-          header = new Uint8Array([0xda, (len >> 8) & 0xff, len & 0xff]); // str16
+          result[key] = normalizeTrailingZeros(value);
         }
-        const result = new Uint8Array(header.length + strBytes.length);
-        result.set(header);
-        result.set(strBytes, header.length);
-        return result;
       }
-      if (Array.isArray(val)) {
-        const len = val.length;
-        let header;
-        if (len <= 15) {
-          header = new Uint8Array([0x90 | len]); // fixarray
-        } else {
-          header = new Uint8Array([0xdc, (len >> 8) & 0xff, len & 0xff]); // array16
-        }
-        const parts = [header];
-        for (const item of val) {
-          parts.push(encodeValue(item));
-        }
-        const totalLen = parts.reduce((sum, p) => sum + p.length, 0);
-        const result = new Uint8Array(totalLen);
-        let offset = 0;
-        for (const part of parts) {
-          result.set(part, offset);
-          offset += part.length;
-        }
-        return result;
-      }
-      if (typeof val === 'object') {
-        const keys = Object.keys(val);
-        const len = keys.length;
-        let header;
-        if (len <= 15) {
-          header = new Uint8Array([0x80 | len]); // fixmap
-        } else {
-          header = new Uint8Array([0xde, (len >> 8) & 0xff, len & 0xff]); // map16
-        }
-        const parts = [header];
-        for (const key of keys) {
-          parts.push(encodeValue(key));
-          parts.push(encodeValue(val[key]));
-        }
-        const totalLen = parts.reduce((sum, p) => sum + p.length, 0);
-        const result = new Uint8Array(totalLen);
-        let offset = 0;
-        for (const part of parts) {
-          result.set(part, offset);
-          offset += part.length;
-        }
-        return result;
-      }
-      return new Uint8Array([0xc0]); // nil fallback
-    };
-    return encodeValue(obj);
+      return result;
+    }
+    return obj;
   };
 
   // Compute action hash for L1 signing (msgpack + nonce + vault)
   const computeActionHash = (action, nonce, vaultAddress = null) => {
-    const actionBytes = msgpackEncode(action);
+    // Normalize the action to remove trailing zeros from 'p' and 's' fields
+    const normalizedAction = normalizeTrailingZeros(action);
+
+    console.log('Normalized action for hashing:', JSON.stringify(normalizedAction, null, 2));
+
+    // Use official msgpack library (loaded from CDN as MessagePack global)
+    const actionBytes = MessagePack.encode(normalizedAction);
+
+    console.log('Msgpack encoded length:', actionBytes.length);
 
     // Convert nonce to 8-byte big-endian
     const nonceBytes = new Uint8Array(8);
