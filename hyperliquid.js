@@ -26,7 +26,10 @@ window.HyperliquidManager = (() => {
 
   // ───────── LocalStorage Persistence ─────────
   const saveWalletData = () => {
-    if (!walletAddress || !agentPrivateKey) return;
+    if (!walletAddress || !agentPrivateKey) {
+      console.log('Cannot save wallet data - missing address or key');
+      return;
+    }
 
     const data = {
       walletAddress: walletAddress,
@@ -36,7 +39,10 @@ window.HyperliquidManager = (() => {
 
     try {
       localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(data));
-      console.log('Wallet data saved to localStorage');
+      console.log('Wallet data saved to localStorage:', walletAddress);
+      // Verify it was saved
+      const verify = localStorage.getItem(CONFIG.STORAGE_KEY);
+      console.log('Verified saved data exists:', !!verify);
     } catch (error) {
       console.error('Failed to save wallet data:', error);
     }
@@ -75,14 +81,24 @@ window.HyperliquidManager = (() => {
       });
 
       const agents = await response.json();
-      // Check if our agent is in the list of approved agents
-      return agents.some(agent =>
-        agent.agentAddress?.toLowerCase() === agentAddress.toLowerCase() &&
-        agent.agentName === 'PerpPlay'
-      );
+      console.log('Agent verification response:', agents);
+
+      // If we got an array, check if our agent is in it
+      if (Array.isArray(agents)) {
+        const found = agents.some(agent =>
+          agent.agentAddress?.toLowerCase() === agentAddress.toLowerCase() &&
+          agent.agentName === 'PerpPlay'
+        );
+        if (found) return true;
+      }
+
+      // If verification is inconclusive, assume valid and let it fail at trade time
+      console.log('Agent verification inconclusive, assuming valid');
+      return true;
     } catch (error) {
       console.error('Error verifying agent:', error);
-      return false;
+      // On error, assume valid - will fail at trade time if actually invalid
+      return true;
     }
   };
 

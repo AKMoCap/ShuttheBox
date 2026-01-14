@@ -87,12 +87,12 @@ h1 {
 /* roll button just below the cards */
 #rollBtn.primary {
   position: absolute;
-  top: 62%;
+  top: 55%;
   /* tweak this value to move the button up/down */
   left: 50%;
   transform: translateX(-50%);
-  font-size: 1.25rem;
-  padding: 10px 18px;
+  font-size: 1rem;
+  padding: 6px 14px;
   border: none;
   border-radius: .5rem;
   background: var(--accent);
@@ -224,7 +224,7 @@ button:not(#rollBtn):hover {
   }
 
   #rollBtn.primary {
-    top: 58%;
+    top: 52%;
   }
 
   /* ─── restore your space.png backdrop on mobile ─── */
@@ -353,6 +353,21 @@ button:not(#rollBtn):hover {
   color: #9ca3af;
   margin-top: 4px;
   font-family: monospace;
+}
+
+/* ───────── PerpPlay Button Wrapper ───────── */
+.perpplay-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.wallet-hint {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 4px;
+  font-family: monospace;
+  text-align: center;
 }
 
 /* ───────── Wallet Modal ───────── */
@@ -636,7 +651,7 @@ button:not(#rollBtn):hover {
 /* ───────── Position Table ───────── */
 .position-table-container {
   position: absolute;
-  top: 73%;
+  top: 66%;
   left: 50%;
   transform: translateX(-50%);
   width: 90%;
@@ -644,7 +659,7 @@ button:not(#rollBtn):hover {
   background: rgba(11, 22, 36, 0.95);
   border: 2px solid var(--accent);
   border-radius: 10px;
-  padding: 10px;
+  padding: 8px;
   max-height: 160px;
   overflow-y: auto;
 }

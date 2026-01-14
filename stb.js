@@ -225,8 +225,14 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Show closing overlay
+    // Show closing overlay with brief delay before starting
     if (closingOverlay) closingOverlay.style.display = 'flex';
+    if (closingTitle) closingTitle.textContent = 'Ending Game...';
+    if (closingProgress) closingProgress.textContent = 'Preparing to close positions...';
+
+    // Wait 1.5 seconds before closing positions
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
     if (closingTitle) closingTitle.textContent = 'Closing Positions...';
     if (closingProgress) closingProgress.textContent = '';
 
@@ -465,7 +471,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const TOTAL_W = COLS * CARD_W + (COLS - 1) * GAP + 6;
   const TOTAL_H = ROWS * CARD_H + (ROWS - 1) * GAP + 6;
   const START_X = Math.round((cvs.width - TOTAL_W) / 2);
-  const START_Y = Math.round((cvs.height - TOTAL_H) / 2) - 40; // shift cards up for roll button
+  const START_Y = Math.round((cvs.height - TOTAL_H) / 2) - 70; // shift cards up for roll button and position table
 
   const SUIT = "♠";
   const FACE = [
@@ -1028,9 +1034,15 @@ document.addEventListener("DOMContentLoaded", () => {
         let totalPnl = 0;
         positions.forEach(p => totalPnl += (p.pnlUsd || 0));
 
-        // Show closing overlay
+        // Show closing overlay with brief delay
         if (closingOverlay) closingOverlay.style.display = 'flex';
-        if (closingTitle) closingTitle.textContent = 'Game Over! Closing Positions...';
+        if (closingTitle) closingTitle.textContent = won ? 'You Won!' : 'Game Over!';
+        if (closingProgress) closingProgress.textContent = 'Preparing to close positions...';
+
+        // Wait 1.5 seconds before closing positions
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        if (closingTitle) closingTitle.textContent = 'Closing Positions...';
         if (closingProgress) closingProgress.textContent = '';
 
         try {
