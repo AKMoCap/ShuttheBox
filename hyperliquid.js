@@ -616,20 +616,23 @@ const HyperliquidManager = (() => {
       const nonce = generateNonce();
 
       // Order structure for Hyperliquid
+      // CRITICAL: Key order MUST be exactly: a, b, p, s, r, t, c (c omitted if null)
       const order = {
-        a: token.index, // asset index
-        b: true, // is_buy = true for long
-        p: markPrice.toString(), // limit price (use mark for market-ish)
-        s: roundedSize.toString(), // size
-        r: false, // reduce_only
+        a: token.index,
+        b: true,
+        p: markPrice.toString(),
+        s: roundedSize.toString(),
+        r: false,
         t: {
           limit: {
-            tif: 'Ioc' // Immediate or Cancel for market-like execution
+            tif: 'Ioc'
           }
-        },
-        c: null // cloid (client order id)
+        }
+        // c (cloid) is omitted when null - don't include null values
       };
 
+      // Action structure for Hyperliquid
+      // CRITICAL: Key order MUST be: type, orders, grouping, builder (if present)
       const action = {
         type: 'order',
         orders: [order],
@@ -639,6 +642,8 @@ const HyperliquidManager = (() => {
           f: CONFIG.BUILDER_FEE_BPS
         }
       };
+
+      console.log('Order action:', JSON.stringify(action, null, 2));
 
       // Sign the action
       const signature = await signOrderAction(action, nonce);
@@ -693,18 +698,19 @@ const HyperliquidManager = (() => {
       const nonce = generateNonce();
 
       // Close order (opposite direction, reduce only)
+      // CRITICAL: Key order MUST be exactly: a, b, p, s, r, t (c omitted when null)
       const order = {
         a: token.index,
-        b: false, // is_buy = false (sell to close long)
+        b: false,
         p: markPrice.toString(),
         s: Math.abs(size).toString(),
-        r: true, // reduce_only = true
+        r: true,
         t: {
           limit: {
             tif: 'Ioc'
           }
-        },
-        c: null
+        }
+        // c (cloid) omitted when null
       };
 
       const action = {
