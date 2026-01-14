@@ -79,42 +79,13 @@
         </div>
       </div>
 
-      <div id="statsSection">
-        <table>
-          <tr>
-            <td>Total Players</td>
-            <td><span id="playerCount">…</span></td>
-          </tr>
-          <tr>
-            <td>Total Plays</td>
-            <td><span id="playCount">…</span></td>
-          </tr>
-          <tr>
-            <td>Total Wins</td>
-            <td><span id="winCount">…</span></td>
-          </tr>
-          <tr>
-            <td>Total Losses</td>
-            <td><span id="loseCount">…</span></td>
-          </tr>
-          <tr>
-            <td>Your Wins</td>
-            <td><span id="yourWins">0</span></td>
-          </tr>
-          <tr>
-            <td>Your Losses</td>
-            <td><span id="yourLosses">0</span></td>
-          </tr>
-        </table>
-
-        <!-- Desktop-only controls cheat-sheet -->
-        <div id="controlsBox" class="controls-box">
-          <strong>Keyboard Controls</strong><br>
-          Enter – Roll<br>
-          Arrows – Select Cards<br>
-          Spacebar – Flip/Unflip<br>
-          Ctrl + R – Restart
-        </div>
+      <!-- Desktop-only controls cheat-sheet -->
+      <div id="controlsBox" class="controls-box">
+        <strong>Keyboard Controls</strong><br>
+        Enter – Roll<br>
+        Arrows – Select Cards<br>
+        Spacebar – Flip/Unflip<br>
+        Ctrl + R – Restart
       </div>
     </div>
   </div>
@@ -138,6 +109,78 @@
       If you are down to single digit cards, you have the choice to roll just 1 die.
     </p>
     <p>Good luck!</p>
+  </div>
+
+  <!-- Stats button -->
+  <button id="statsBtn" class="stats-btn">Stats</button>
+
+  <!-- Stats Modal -->
+  <div id="statsModal" class="stats-modal" style="display: none;">
+    <div class="stats-modal-content">
+      <button id="closeStatsModal" class="close-stats-modal">&times;</button>
+
+      <!-- Free Play Stats -->
+      <div class="stats-section-box">
+        <h3>Free Play Stats</h3>
+        <table class="stats-table">
+          <tr>
+            <td>Total Players</td>
+            <td><span id="fpTotalPlayers">0</span></td>
+          </tr>
+          <tr>
+            <td>Total Wins</td>
+            <td><span id="fpTotalWins">0</span></td>
+          </tr>
+          <tr>
+            <td>Total Losses</td>
+            <td><span id="fpTotalLosses">0</span></td>
+          </tr>
+          <tr class="your-stats-row">
+            <td>Your Wins</td>
+            <td><span id="fpYourWins">0</span></td>
+          </tr>
+          <tr class="your-stats-row">
+            <td>Your Losses</td>
+            <td><span id="fpYourLosses">0</span></td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- PerpPlay Stats -->
+      <div class="stats-section-box">
+        <h3>PerpPlay Stats</h3>
+        <table class="stats-table">
+          <tr>
+            <td>Total Wallets Played</td>
+            <td><span id="ppTotalWallets">0</span></td>
+          </tr>
+          <tr>
+            <td>Total Wins</td>
+            <td><span id="ppTotalWins">0</span></td>
+          </tr>
+          <tr>
+            <td>Total Losses</td>
+            <td><span id="ppTotalLosses">0</span></td>
+          </tr>
+          <tr class="your-stats-row">
+            <td>Your Wins</td>
+            <td><span id="ppYourWins">0</span></td>
+          </tr>
+          <tr class="your-stats-row">
+            <td>Your Losses</td>
+            <td><span id="ppYourLosses">0</span></td>
+          </tr>
+          <tr class="your-stats-row">
+            <td>Your Volume</td>
+            <td><span id="ppYourVolume">$0.00</span></td>
+          </tr>
+          <tr class="your-stats-row">
+            <td>Your P&L</td>
+            <td><span id="ppYourPnl">$0.00</span></td>
+          </tr>
+        </table>
+      </div>
+    </div>
   </div>
 
   <!-- Trade toast notification for PerpPlay mode -->
