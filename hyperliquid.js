@@ -629,6 +629,45 @@ window.HyperliquidManager = (() => {
     }
   };
 
+  // Update leverage for an asset
+  const updateLeverage = async (asset, leverage, isCross = true) => {
+    if (!agentWallet || !isConnected) {
+      throw new Error('Not connected');
+    }
+
+    const nonce = Date.now();
+
+    const action = {
+      type: 'updateLeverage',
+      asset: asset,
+      isCross: isCross,
+      leverage: leverage
+    };
+
+    console.log('Updating leverage:', action);
+    const signature = await signL1Action(action, nonce);
+
+    const response = await fetch('https://api.hyperliquid.xyz/exchange', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: action,
+        nonce: nonce,
+        signature: signature,
+        vaultAddress: null
+      })
+    });
+
+    const responseText = await response.text();
+    console.log('Leverage update response:', responseText);
+
+    try {
+      return JSON.parse(responseText);
+    } catch (e) {
+      return { status: 'error', response: responseText };
+    }
+  };
+
   // Open a position (Long or Short)
   const openPosition = async (token, collateralUsd = 10, side = 'LONG') => {
     if (!agentWallet || !isConnected) {
@@ -647,6 +686,10 @@ window.HyperliquidManager = (() => {
       const slippageMultiplier = isBuy ? 1.01 : 0.99;
 
       console.log(`Opening ${side}: ${token.name}, size: ${roundedSize}, leverage: ${leverage}x`);
+
+      // Set leverage before opening position
+      const leverageResult = await updateLeverage(token.index, leverage, true);
+      console.log('Leverage set result:', leverageResult);
 
       const result = await placeOrder({
         asset: token.index,
