@@ -226,8 +226,8 @@ button:not(#rollBtn):hover {
   #rollBtn.primary {
     /* Position relative to scaled canvas - cards end ~60% down the 660px canvas */
     /* Canvas is 90vw wide, aspect ratio 900:660, so height is 90vw * 0.733 */
-    /* Cards bottom at 60% = 90vw * 0.733 * 0.6 = ~40vw from top */
-    top: min(40vw, 260px) !important;
+    /* Added a bit more spacing below cards */
+    top: min(44vw, 290px) !important;
   }
 
   /* ─── restore your space.png backdrop on mobile ─── */
