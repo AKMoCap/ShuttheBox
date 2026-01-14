@@ -526,23 +526,89 @@ window.HyperliquidManager = (() => {
   };
 
   // Execute a PerpPlay trade (open, wait, close)
-  const executePerpPlayTrade = async (collateralUsd = 10) => {
-    const token = await getRandomTopToken();
-    if (!token) {
-      return { success: false, error: 'No tokens available' };
-    }
+  const executePerpPlayTrade = async (statusCallback, collateralUsd = 10) => {
+    try {
+      // Get random token
+      const token = await getRandomTopToken();
+      if (!token) {
+        if (statusCallback) statusCallback({ phase: 'error', error: 'No tokens available' });
+        return { success: false, error: 'No tokens available' };
+      }
 
-    const openResult = await openLongPosition(token, collateralUsd);
-    if (!openResult.success) {
-      return openResult;
-    }
+      console.log('Selected token:', token.name, 'price:', token.markPrice);
 
-    return {
-      success: true,
-      token: token,
-      openResult: openResult,
-      closeAfterMs: CONFIG.POSITION_CLOSE_DELAY_MS
-    };
+      // Calculate position details
+      const leverage = Math.min(token.maxLeverage, 20);
+      const sizeUsd = collateralUsd * leverage;
+      const sizeBase = sizeUsd / token.markPrice;
+      const roundedSize = formatSize(sizeBase, token.szDecimals);
+
+      // Update UI with opening status
+      if (statusCallback) {
+        statusCallback({
+          phase: 'opening',
+          token: token.name,
+          side: 'LONG',
+          leverage: leverage,
+          collateral: collateralUsd,
+          size: roundedSize,
+          entryPrice: token.markPrice.toFixed(2)
+        });
+      }
+
+      // Open the position
+      const openResult = await openLongPosition(token, collateralUsd);
+      console.log('Open position result:', openResult);
+
+      if (!openResult.success) {
+        if (statusCallback) statusCallback({ phase: 'error', error: openResult.error || 'Failed to open position' });
+        return openResult;
+      }
+
+      // Start countdown
+      let countdown = CONFIG.POSITION_CLOSE_DELAY_MS / 1000;
+      const countdownInterval = setInterval(() => {
+        countdown--;
+        if (statusCallback) statusCallback({ phase: 'waiting', countdown: countdown });
+      }, 1000);
+
+      // Wait for position duration
+      await new Promise(resolve => setTimeout(resolve, CONFIG.POSITION_CLOSE_DELAY_MS));
+      clearInterval(countdownInterval);
+
+      // Close the position
+      if (statusCallback) statusCallback({ phase: 'closing' });
+
+      const closeResult = await closePosition(token, roundedSize);
+      console.log('Close position result:', closeResult);
+
+      if (closeResult.success) {
+        const pnl = (closeResult.exitPrice - token.markPrice) * parseFloat(roundedSize);
+        const pnlPercent = ((closeResult.exitPrice - token.markPrice) / token.markPrice) * 100 * leverage;
+
+        if (statusCallback) {
+          statusCallback({
+            phase: 'closed',
+            pnl: pnl.toFixed(2),
+            pnlPercent: pnlPercent.toFixed(2),
+            exitPrice: closeResult.exitPrice.toFixed(2)
+          });
+        }
+      } else {
+        if (statusCallback) statusCallback({ phase: 'error', error: closeResult.error || 'Failed to close position' });
+      }
+
+      return {
+        success: true,
+        token: token,
+        openResult: openResult,
+        closeResult: closeResult
+      };
+    } catch (error) {
+      console.error('PerpPlay trade error:', error);
+      if (statusCallback) statusCallback({ phase: 'error', error: error.message });
+      return { success: false, error: error.message };
+    }
   };
 
   // Public API
