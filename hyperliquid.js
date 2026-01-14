@@ -19,6 +19,47 @@ window.HyperliquidManager = (() => {
   let agentPrivateKey = null;
   let agentSdk = null;
 
+  // Arbitrum One network config
+  const ARBITRUM_ONE = {
+    chainId: '0xa4b1', // 42161 in hex
+    chainName: 'Arbitrum One',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: ['https://arb1.arbitrum.io/rpc'],
+    blockExplorerUrls: ['https://arbiscan.io']
+  };
+
+  // Switch to Arbitrum One network
+  const switchToArbitrum = async (ethereum) => {
+    try {
+      const currentChainId = await ethereum.request({ method: 'eth_chainId' });
+      if (currentChainId === ARBITRUM_ONE.chainId) {
+        console.log('Already on Arbitrum One');
+        return;
+      }
+
+      console.log('Switching to Arbitrum One...');
+      try {
+        await ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: ARBITRUM_ONE.chainId }]
+        });
+      } catch (switchError) {
+        // Chain not added, try to add it
+        if (switchError.code === 4902) {
+          await ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [ARBITRUM_ONE]
+          });
+        } else {
+          throw switchError;
+        }
+      }
+      console.log('Switched to Arbitrum One');
+    } catch (error) {
+      throw new Error('Failed to switch to Arbitrum One: ' + error.message);
+    }
+  };
+
   // Check if wallet is available
   const isWalletAvailable = () => {
     return typeof window !== 'undefined' && (window.ethereum || window.rabby);
@@ -44,6 +85,9 @@ window.HyperliquidManager = (() => {
 
       walletAddress = accounts[0].toLowerCase();
       console.log('Wallet connected:', walletAddress);
+
+      // Ensure we're on Arbitrum One (required for EIP-712 signing)
+      await switchToArbitrum(ethereum);
 
       // Step 1: Create agent wallet and get approval signature
       console.log('=== STEP 1: Creating Agent Wallet ===');
