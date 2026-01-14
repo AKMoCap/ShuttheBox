@@ -218,11 +218,20 @@ document.addEventListener("DOMContentLoaded", () => {
         const pnlClass = pnlValue >= 0 ? 'profit' : 'loss';
         const pnlSign = pnlValue >= 0 ? '+' : '';
 
+        // Format prices based on magnitude
+        const formatPrice = (price) => {
+          if (price >= 1000) return price.toFixed(2);
+          if (price >= 1) return price.toFixed(4);
+          return price.toFixed(6);
+        };
+
         row.innerHTML = `
           <td>${pos.tokenName}</td>
           <td class="${pos.side.toLowerCase()}">${pos.side}</td>
           <td>${pos.leverage}x</td>
           <td>$${pos.collateral}</td>
+          <td>$${formatPrice(pos.entryPrice)}</td>
+          <td>$${formatPrice(pos.currentPrice || pos.entryPrice)}</td>
           <td class="${pnlClass}">${pnlSign}$${pnlValue.toFixed(2)}</td>
         `;
 
