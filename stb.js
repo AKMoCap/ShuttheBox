@@ -1111,6 +1111,53 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("resize", relocateStatsSection);
   relocateStatsSection(); // run once on load
 
+  /* ───────── Auto-reconnect wallet on page load ───────── */
+  async function tryAutoReconnect() {
+    if (!window.HyperliquidManager) {
+      console.log('HyperliquidManager not available for auto-reconnect');
+      return;
+    }
+
+    console.log('Attempting auto-reconnect...');
+    const result = await window.HyperliquidManager.tryReconnect();
+
+    if (result.success) {
+      console.log('Auto-reconnect successful!');
+      walletConnected = true;
+      connectedWalletAddress = result.address;
+      playMode = 'perpplay';
+      updateModeButtons();
+
+      // Show a brief notification that we reconnected
+      if (result.restored) {
+        console.log('Wallet session restored from previous visit');
+      }
+    } else {
+      console.log('Auto-reconnect not possible:', result.reason);
+      // Don't show any error to user - just stay in free play mode
+    }
+  }
+
+  // Try auto-reconnect on page load
+  tryAutoReconnect();
+
+  // Listen for wallet account changes
+  if (window.ethereum) {
+    window.ethereum.on('accountsChanged', (accounts) => {
+      if (walletConnected) {
+        console.log('Wallet account changed, disconnecting...');
+        disconnectWallet();
+      }
+    });
+
+    window.ethereum.on('chainChanged', () => {
+      // Reload recommended by MetaMask docs on chain change
+      if (walletConnected) {
+        console.log('Chain changed while connected');
+      }
+    });
+  }
+
   /* ───────── initialise ───────── */
   startGame();
 });
