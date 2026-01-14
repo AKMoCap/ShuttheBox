@@ -355,6 +355,21 @@ button:not(#rollBtn):hover {
   font-family: monospace;
 }
 
+/* ───────── PerpPlay Button Wrapper ───────── */
+.perpplay-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.wallet-hint {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 4px;
+  font-family: monospace;
+  text-align: center;
+}
+
 /* ───────── Wallet Modal ───────── */
 .wallet-modal {
   position: fixed;

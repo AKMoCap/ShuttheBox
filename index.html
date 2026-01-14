@@ -13,11 +13,13 @@
     <h1>SHUT THE BOX</h1>
     <div class="play-mode-buttons">
       <button id="freePlayBtn" class="mode-btn active">Free Play</button>
-      <button id="perpPlayBtn" class="mode-btn">PerpPlay - Connect Wallet</button>
+      <div class="perpplay-wrapper">
+        <button id="perpPlayBtn" class="mode-btn">PerpPlay - Connect Wallet</button>
+        <div id="signatureHint" class="wallet-hint">2 one-time signatures</div>
+        <div id="walletAddress" class="wallet-hint" style="display: none;"></div>
+      </div>
       <button id="disconnectBtn" class="mode-btn disconnect-btn" style="display: none;">Disconnect</button>
     </div>
-    <div id="walletAddress" class="wallet-address" style="display: none;"></div>
-    <div id="signatureHint" class="wallet-address">2 one-time signatures</div>
   </div>
 
   <!-- GAME + SIDEBAR FLEX -->
