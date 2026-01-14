@@ -113,11 +113,23 @@ const HyperliquidManager = (() => {
         body: JSON.stringify({ type: 'metaAndAssetCtxs' })
       });
 
+      // Get response as text first to handle errors better
+      const responseText = await response.text();
+
       if (!response.ok) {
-        throw new Error('Failed to fetch asset metadata');
+        console.error('API error response:', responseText);
+        throw new Error('Failed to fetch asset metadata: ' + responseText);
       }
 
-      const data = await response.json();
+      // Parse JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse API response:', responseText);
+        throw new Error('Invalid JSON response from API');
+      }
+
       assetMeta = data[0]; // Universe metadata
       assetContexts = data[1]; // Asset contexts with prices, OI, etc.
 
@@ -125,7 +137,7 @@ const HyperliquidManager = (() => {
       return true;
     } catch (error) {
       console.error('Error fetching asset meta:', error);
-      return false;
+      throw error; // Re-throw to show in alert
     }
   };
 
@@ -298,7 +310,14 @@ const HyperliquidManager = (() => {
         body: JSON.stringify(requestBody)
       });
 
-      const result = await response.json();
+      const responseText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Failed to parse response:', responseText);
+        throw new Error('Invalid response: ' + responseText);
+      }
       console.log('Agent approval response:', result);
 
       if (result.status === 'ok') {
