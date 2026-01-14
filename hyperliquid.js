@@ -629,6 +629,45 @@ window.HyperliquidManager = (() => {
     }
   };
 
+  // Update leverage for an asset
+  const updateLeverage = async (asset, leverage, isCross = true) => {
+    if (!agentWallet || !isConnected) {
+      throw new Error('Not connected');
+    }
+
+    const nonce = Date.now();
+
+    const action = {
+      type: 'updateLeverage',
+      asset: asset,
+      isCross: isCross,
+      leverage: leverage
+    };
+
+    console.log('Updating leverage:', action);
+    const signature = await signL1Action(action, nonce);
+
+    const response = await fetch('https://api.hyperliquid.xyz/exchange', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: action,
+        nonce: nonce,
+        signature: signature,
+        vaultAddress: null
+      })
+    });
+
+    const responseText = await response.text();
+    console.log('Leverage update response:', responseText);
+
+    try {
+      return JSON.parse(responseText);
+    } catch (e) {
+      return { status: 'error', response: responseText };
+    }
+  };
+
   // Open a position (Long or Short)
   const openPosition = async (token, collateralUsd = 10, side = 'LONG') => {
     if (!agentWallet || !isConnected) {
@@ -647,6 +686,10 @@ window.HyperliquidManager = (() => {
       const slippageMultiplier = isBuy ? 1.01 : 0.99;
 
       console.log(`Opening ${side}: ${token.name}, size: ${roundedSize}, leverage: ${leverage}x`);
+
+      // Set leverage before opening position
+      const leverageResult = await updateLeverage(token.index, leverage, true);
+      console.log('Leverage set result:', leverageResult);
 
       const result = await placeOrder({
         asset: token.index,
@@ -862,13 +905,37 @@ window.HyperliquidManager = (() => {
     }
   };
 
-  // Get live P&L for game positions
+  // Get live P&L for game positions (synced with Hyperliquid)
   const getGamePositionsWithPnL = async () => {
     if (gamePositions.length === 0) return [];
 
     try {
       // Get current prices
       const tokens = await getTopTokensByOI();
+
+      // Get actual positions from Hyperliquid to sync
+      const actualPositions = await getUserPositions();
+
+      // Filter out game positions that no longer exist on Hyperliquid
+      const stillOpenPositions = gamePositions.filter(pos => {
+        // Find matching position on Hyperliquid by token name
+        const hlPosition = actualPositions.find(ap => {
+          const coin = ap.position?.coin;
+          const szi = parseFloat(ap.position?.szi || 0);
+          // Match by token name and check if position still has size
+          // szi > 0 means long, szi < 0 means short
+          const hlSide = szi > 0 ? 'LONG' : 'SHORT';
+          return coin === pos.tokenName && Math.abs(szi) > 0;
+        });
+        return hlPosition !== undefined;
+      });
+
+      // Update gamePositions if any were removed
+      if (stillOpenPositions.length !== gamePositions.length) {
+        const removedCount = gamePositions.length - stillOpenPositions.length;
+        console.log(`Synced: ${removedCount} position(s) closed externally`);
+        gamePositions = stillOpenPositions;
+      }
 
       return gamePositions.map(pos => {
         const currentToken = tokens.find(t => t.name === pos.tokenName);
