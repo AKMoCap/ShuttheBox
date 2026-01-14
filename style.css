@@ -836,6 +836,119 @@ button:not(#rollBtn):hover {
   color: #9ca3af;
 }
 
+/* ───────── Stats Button ───────── */
+.stats-btn {
+  margin-top: 16px;
+  padding: 10px 30px;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent);
+  font-family: "Franklin Gothic Book", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.stats-btn:hover {
+  background: rgba(58, 180, 239, 0.15);
+}
+
+/* ───────── Stats Modal ───────── */
+.stats-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1004;
+}
+
+.stats-modal-content {
+  background: linear-gradient(135deg, #0b1624 0%, #1a2a3d 100%);
+  border: 3px solid var(--accent);
+  border-radius: 16px;
+  padding: 25px 35px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.close-stats-modal {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 2rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  margin: 0;
+}
+
+.close-stats-modal:hover {
+  color: #fff;
+}
+
+.stats-section-box {
+  margin-bottom: 20px;
+}
+
+.stats-section-box:last-child {
+  margin-bottom: 0;
+}
+
+.stats-section-box h3 {
+  color: var(--accent);
+  font-size: 1.2rem;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--accent);
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--accent);
+}
+
+.stats-table td {
+  padding: 6px 10px;
+  border: 1px solid rgba(58, 180, 239, 0.4);
+}
+
+.stats-table td:first-child {
+  width: 65%;
+}
+
+.stats-table td:last-child {
+  text-align: right;
+  font-weight: 600;
+}
+
+.stats-table .your-stats-row {
+  background: rgba(58, 180, 239, 0.1);
+}
+
+.stats-table .your-stats-row td {
+  color: #fff;
+}
+
+/* P&L coloring */
+#ppYourPnl.profit {
+  color: #22c55e !important;
+}
+
+#ppYourPnl.loss {
+  color: #ef4444 !important;
+}
+
 /* ───────── Mobile adjustments for new elements ───────── */
 @media (max-width: 800px) {
   .header-container {

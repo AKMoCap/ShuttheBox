@@ -2,10 +2,14 @@
 document.addEventListener("DOMContentLoaded", () => {
   /* ───────── Firebase + DOM shortcuts ───────── */
   const db = window.db;
-  const playersRef = db.ref("players");
-  const playsRef = db.ref("plays");
-  const winsRef = db.ref("wins");
-  const lossesRef = db.ref("losses");
+
+  // New Firebase structure for stats
+  const freeplayRef = db.ref("freeplay");
+  const perpplayRef = db.ref("perpplay");
+
+  // Game session tracking for PerpPlay
+  let currentGameVolume = 0;
+  let currentGamePnl = 0;
 
   /* ───────── PerpPlay Mode State ───────── */
   let playMode = 'free'; // 'free' or 'perpplay'
@@ -373,6 +377,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (result.success) {
         console.log(`Position opened: ${token.name} ${side} with $${selectedCollateral}`);
+        // Track volume for stats
+        trackPositionOpened(selectedCollateral);
         // Update position table and balance immediately
         await updatePositionTable();
         await updateUserBalance();
@@ -449,13 +455,29 @@ document.addEventListener("DOMContentLoaded", () => {
     endGameBtn.addEventListener('click', handleEndGame);
   }
 
-  const yourWinsEl = document.getElementById("yourWins");
-  const yourLossesEl = document.getElementById("yourLosses");
+  // Stats Modal Elements
+  const statsBtn = document.getElementById('statsBtn');
+  const statsModal = document.getElementById('statsModal');
+  const closeStatsModal = document.getElementById('closeStatsModal');
 
-  let yourWins = +localStorage.getItem("yourWins") || 0;
-  let yourLosses = +localStorage.getItem("yourLosses") || 0;
-  yourWinsEl.textContent = yourWins;
-  yourLossesEl.textContent = yourLosses;
+  // Stats display elements
+  const fpTotalPlayers = document.getElementById('fpTotalPlayers');
+  const fpTotalWins = document.getElementById('fpTotalWins');
+  const fpTotalLosses = document.getElementById('fpTotalLosses');
+  const fpYourWins = document.getElementById('fpYourWins');
+  const fpYourLosses = document.getElementById('fpYourLosses');
+
+  const ppTotalWallets = document.getElementById('ppTotalWallets');
+  const ppTotalWins = document.getElementById('ppTotalWins');
+  const ppTotalLosses = document.getElementById('ppTotalLosses');
+  const ppYourWins = document.getElementById('ppYourWins');
+  const ppYourLosses = document.getElementById('ppYourLosses');
+  const ppYourVolume = document.getElementById('ppYourVolume');
+  const ppYourPnl = document.getElementById('ppYourPnl');
+
+  // Local storage for free play personal stats
+  let localFpWins = +localStorage.getItem("fpWins") || 0;
+  let localFpLosses = +localStorage.getItem("fpLosses") || 0;
 
   const winSound = new Audio("cheer.mp3");
   const loseSound = new Audio("wompwomp.mp3");
@@ -504,27 +526,161 @@ document.addEventListener("DOMContentLoaded", () => {
   const restartBtn = document.getElementById("restartBtn");
   const soundToggle = document.getElementById("soundToggle");
 
-  const playerCountEl = document.getElementById("playerCount");
-  const playCountEl = document.getElementById("playCount");
-  const winCountEl = document.getElementById("winCount");
-  const loseCountEl = document.getElementById("loseCount");
   const oddsSpan = document.getElementById("immediateOdds");
 
-  /* one-time browser id */
+  /* one-time browser id for free play */
   let playerId = localStorage.getItem("playerId");
   if (!playerId) {
     playerId = crypto.randomUUID();
     localStorage.setItem("playerId", playerId);
   }
 
-  /* fetch global counters */
-  playsRef.once("value").then((s) => (playCountEl.textContent = s.val() || 0));
-  winsRef.once("value").then((s) => (winCountEl.textContent = s.val() || 0));
-  lossesRef.once("value").then((s) => (loseCountEl.textContent = s.val() || 0));
-  playersRef
-    .once("value")
-    .then((s) => (playerCountEl.textContent = s.exists() ? s.numChildren() : 0))
-    .catch(() => (playerCountEl.textContent = "err"));
+  /* ───────── Stats Functions ───────── */
+
+  // Load and display all stats
+  async function loadAllStats() {
+    // Free Play Stats
+    try {
+      const fpPlayersSnap = await freeplayRef.child("players").once("value");
+      const fpWinsSnap = await freeplayRef.child("totalWins").once("value");
+      const fpLossesSnap = await freeplayRef.child("totalLosses").once("value");
+
+      if (fpTotalPlayers) fpTotalPlayers.textContent = fpPlayersSnap.exists() ? fpPlayersSnap.numChildren() : 0;
+      if (fpTotalWins) fpTotalWins.textContent = fpWinsSnap.val() || 0;
+      if (fpTotalLosses) fpTotalLosses.textContent = fpLossesSnap.val() || 0;
+      if (fpYourWins) fpYourWins.textContent = localFpWins;
+      if (fpYourLosses) fpYourLosses.textContent = localFpLosses;
+    } catch (error) {
+      console.error('Error loading free play stats:', error);
+    }
+
+    // PerpPlay Stats
+    try {
+      const ppWalletsSnap = await perpplayRef.child("wallets").once("value");
+      const ppWinsSnap = await perpplayRef.child("totalWins").once("value");
+      const ppLossesSnap = await perpplayRef.child("totalLosses").once("value");
+
+      if (ppTotalWallets) ppTotalWallets.textContent = ppWalletsSnap.exists() ? ppWalletsSnap.numChildren() : 0;
+      if (ppTotalWins) ppTotalWins.textContent = ppWinsSnap.val() || 0;
+      if (ppTotalLosses) ppTotalLosses.textContent = ppLossesSnap.val() || 0;
+
+      // Load wallet-specific stats if connected
+      if (connectedWalletAddress) {
+        const walletKey = connectedWalletAddress.toLowerCase();
+        const walletSnap = await perpplayRef.child(`wallets/${walletKey}`).once("value");
+        const walletData = walletSnap.val() || {};
+
+        if (ppYourWins) ppYourWins.textContent = walletData.wins || 0;
+        if (ppYourLosses) ppYourLosses.textContent = walletData.losses || 0;
+        if (ppYourVolume) ppYourVolume.textContent = `$${(walletData.volume || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        if (ppYourPnl) {
+          const pnl = walletData.pnl || 0;
+          ppYourPnl.textContent = `${pnl >= 0 ? '+' : ''}$${pnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          ppYourPnl.className = pnl >= 0 ? 'profit' : 'loss';
+        }
+      } else {
+        // Not connected - show zeros
+        if (ppYourWins) ppYourWins.textContent = '0';
+        if (ppYourLosses) ppYourLosses.textContent = '0';
+        if (ppYourVolume) ppYourVolume.textContent = '$0.00';
+        if (ppYourPnl) {
+          ppYourPnl.textContent = '$0.00';
+          ppYourPnl.className = '';
+        }
+      }
+    } catch (error) {
+      console.error('Error loading perpplay stats:', error);
+    }
+  }
+
+  // Record Free Play game result
+  async function recordFreePlayResult(won) {
+    try {
+      // Update global stats
+      const statRef = won ? freeplayRef.child("totalWins") : freeplayRef.child("totalLosses");
+      await statRef.transaction((c) => (c || 0) + 1);
+
+      // Register player
+      await freeplayRef.child(`players/${playerId}`).set(true);
+
+      // Update local stats
+      if (won) {
+        localFpWins++;
+        localStorage.setItem("fpWins", localFpWins);
+      } else {
+        localFpLosses++;
+        localStorage.setItem("fpLosses", localFpLosses);
+      }
+    } catch (error) {
+      console.error('Error recording free play result:', error);
+    }
+  }
+
+  // Record PerpPlay game result
+  async function recordPerpPlayResult(won, volume, pnl) {
+    if (!connectedWalletAddress) return;
+
+    const walletKey = connectedWalletAddress.toLowerCase();
+
+    try {
+      // Update global stats
+      const statRef = won ? perpplayRef.child("totalWins") : perpplayRef.child("totalLosses");
+      await statRef.transaction((c) => (c || 0) + 1);
+
+      // Update wallet-specific stats
+      const walletRef = perpplayRef.child(`wallets/${walletKey}`);
+
+      await walletRef.transaction((data) => {
+        if (!data) {
+          data = { wins: 0, losses: 0, volume: 0, pnl: 0 };
+        }
+        if (won) {
+          data.wins = (data.wins || 0) + 1;
+        } else {
+          data.losses = (data.losses || 0) + 1;
+        }
+        data.volume = (data.volume || 0) + volume;
+        data.pnl = (data.pnl || 0) + pnl;
+        return data;
+      });
+
+      console.log(`PerpPlay result recorded: ${won ? 'WIN' : 'LOSS'}, Volume: $${volume.toFixed(2)}, P&L: $${pnl.toFixed(2)}`);
+    } catch (error) {
+      console.error('Error recording perpplay result:', error);
+    }
+  }
+
+  // Record individual position for volume tracking
+  function trackPositionOpened(collateral) {
+    currentGameVolume += collateral;
+    console.log(`Position opened: $${collateral}, Game volume now: $${currentGameVolume}`);
+  }
+
+  // Stats Modal handlers
+  function showStatsModal() {
+    loadAllStats();
+    if (statsModal) statsModal.style.display = 'flex';
+  }
+
+  function hideStatsModal() {
+    if (statsModal) statsModal.style.display = 'none';
+  }
+
+  if (statsBtn) {
+    statsBtn.addEventListener('click', showStatsModal);
+  }
+
+  if (closeStatsModal) {
+    closeStatsModal.addEventListener('click', hideStatsModal);
+  }
+
+  if (statsModal) {
+    statsModal.addEventListener('click', (e) => {
+      if (e.target === statsModal) {
+        hideStatsModal();
+      }
+    });
+  }
 
   /* ───────── layout constants ───────── */
   const CARD_W = 90,
@@ -1057,37 +1213,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (won) {
       winSound.play();
       launchConfetti();
-      shareCard(rollCount); //  ←— add this
+      shareCard(rollCount);
     } else {
       playRandomLoseSound();
-    }
-
-    /* ─── stats bookkeeping (unchanged) ─── */
-    playsRef
-      .transaction((c) => (c || 0) + 1)
-      .then((r) => (playCountEl.textContent = r.snapshot.val()));
-
-    (won ? winsRef : lossesRef)
-      .transaction((c) => (c || 0) + 1)
-      .then(
-        (r) =>
-          ((won ? winCountEl : loseCountEl).textContent = r.snapshot.val()),
-      );
-
-    playersRef
-      .child(playerId)
-      .set(true)
-      .then(() => playersRef.once("value"))
-      .then((s) => (playerCountEl.textContent = s.numChildren()));
-
-    if (won) {
-      yourWins++;
-      localStorage.setItem("yourWins", yourWins);
-      yourWinsEl.textContent = yourWins;
-    } else {
-      yourLosses++;
-      localStorage.setItem("yourLosses", yourLosses);
-      yourLossesEl.textContent = yourLosses;
     }
 
     // Close all PerpPlay positions if in that mode
@@ -1120,8 +1248,13 @@ document.addEventListener("DOMContentLoaded", () => {
           if (closingTitle) closingTitle.textContent = `${won ? 'You Won!' : 'Game Over!'} Final P&L: ${pnlSign}$${totalPnl.toFixed(2)}`;
           if (closingProgress) closingProgress.textContent = 'All positions closed';
 
-          // Clear game positions
+          // Record PerpPlay stats
+          await recordPerpPlayResult(won, currentGameVolume, totalPnl);
+
+          // Clear game positions and reset tracking
           window.HyperliquidManager.clearGamePositions();
+          currentGameVolume = 0;
+          currentGamePnl = 0;
 
           // Hide overlay and restart after delay
           setTimeout(() => {
@@ -1141,7 +1274,15 @@ document.addEventListener("DOMContentLoaded", () => {
           }, 3000);
         }
         return; // Don't auto-restart below, handled in timeout
+      } else {
+        // PerpPlay mode but no positions - still record stats (with 0 volume/pnl)
+        await recordPerpPlayResult(won, currentGameVolume, 0);
+        currentGameVolume = 0;
+        currentGamePnl = 0;
       }
+    } else {
+      // Free Play mode - record stats
+      await recordFreePlayResult(won);
     }
 
     // Standard auto-restart for losses (when not in PerpPlay or no positions)
@@ -1165,6 +1306,10 @@ document.addEventListener("DOMContentLoaded", () => {
     drawBoard();
     nelly.currentTime = 0; // allow Nelly to play again
 
+    // Reset game tracking
+    currentGameVolume = 0;
+    currentGamePnl = 0;
+
     // Reset position table for PerpPlay mode
     if (playMode === 'perpplay' && window.HyperliquidManager) {
       window.HyperliquidManager.clearGamePositions();
@@ -1174,16 +1319,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* ───────── mobile ↔ desktop: move elements for optimal layout ───────── */
   function relocateMobileElements() {
-    const stats = document.getElementById("statsSection");
-    const instr = document.getElementById("instructions");
     const sidebar = document.querySelector(".right-container");
     const boardWrap = document.getElementById("boardWrap");
     const collateralSection = document.getElementById("collateralSection");
     const oddsDisplay = document.getElementById("immediateOddsDisplay");
-    const scoreBar = document.getElementById("scoreBar");
     const controls = document.getElementById("controls");
-
-    if (!stats) return; // safety guard
+    const controlsBox = document.getElementById("controlsBox");
 
     if (window.innerWidth <= 800) {
       /* ---- mobile layout reordering ---- */
@@ -1197,23 +1338,18 @@ document.addEventListener("DOMContentLoaded", () => {
       if (oddsDisplay && controls && controls.nextSibling !== oddsDisplay) {
         controls.parentNode.insertBefore(oddsDisplay, controls.nextSibling);
       }
-
-      // Move stats after odds display
-      if (stats && oddsDisplay && oddsDisplay.nextSibling !== stats) {
-        oddsDisplay.parentNode.insertBefore(stats, oddsDisplay.nextSibling);
-      }
     } else {
       /* ---- desktop: snap everything back into the sidebar ---- */
       if (sidebar) {
-        // Restore order: odds, collateral, stats
+        // Restore order: odds, collateral, controlsBox
         if (oddsDisplay && !sidebar.contains(oddsDisplay)) {
           sidebar.insertBefore(oddsDisplay, sidebar.firstChild);
         }
         if (collateralSection && !sidebar.contains(collateralSection)) {
           sidebar.insertBefore(collateralSection, oddsDisplay ? oddsDisplay.nextSibling : sidebar.firstChild);
         }
-        if (stats && !sidebar.contains(stats)) {
-          sidebar.appendChild(stats);
+        if (controlsBox && !sidebar.contains(controlsBox)) {
+          sidebar.appendChild(controlsBox);
         }
       }
     }
