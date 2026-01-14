@@ -87,7 +87,7 @@ h1 {
 /* roll button just below the cards */
 #rollBtn.primary {
   position: absolute;
-  top: 55%;
+  top: 63%;
   /* tweak this value to move the button up/down */
   left: 50%;
   transform: translateX(-50%);
@@ -224,7 +224,7 @@ button:not(#rollBtn):hover {
   }
 
   #rollBtn.primary {
-    top: 52%;
+    top: 63%;
   }
 
   /* ─── restore your space.png backdrop on mobile ─── */
@@ -651,7 +651,7 @@ button:not(#rollBtn):hover {
 /* ───────── Position Table ───────── */
 .position-table-container {
   position: absolute;
-  top: 66%;
+  top: 73%;
   left: 50%;
   transform: translateX(-50%);
   width: 90%;
@@ -847,7 +847,7 @@ button:not(#rollBtn):hover {
   }
 
   .position-table-container {
-    top: 70%;
+    top: 73%;
     max-height: 140px;
   }
 }
