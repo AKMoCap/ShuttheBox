@@ -1,84 +1,76 @@
 // hyperliquid.js - Wallet connection and Hyperliquid trading integration
+// Uses the nomeida/hyperliquid SDK for reliable signing
 
 const HyperliquidManager = (() => {
   // Configuration
   const CONFIG = {
-    MAINNET_API: 'https://api.hyperliquid.xyz',
-    TESTNET_API: 'https://api.hyperliquid-testnet.xyz',
-    // Hyperliquid EVM chainId for user-signed actions
-    USER_SIGNED_CHAIN_ID: 999, // 0x3e7 - Hyperliquid EVM chain
-    USER_SIGNED_CHAIN_ID_HEX: '0x3e7',
-    // L1 chainId for order actions on Hyperliquid (always 1337)
-    L1_CHAIN_ID: 1337,
-    L1_CHAIN_ID_HEX: '0x539',
-    BUILDER_ADDRESS: '0x7b4497c1b70de6546b551bdf8f951da53b71b97d', // Must be lowercase!
-    BUILDER_FEE_BPS: 50, // 5 basis points = 0.05% (value is in tenths of bps)
-    LEVERAGE: 20,
-    POSITION_CLOSE_DELAY_MS: 15000, // 15 seconds
+    BUILDER_ADDRESS: '0x7b4497c1b70de6546b551bdf8f951da53b71b97d',
+    BUILDER_FEE_BPS: 50, // 5 basis points in tenths (50 = 5 bps)
+    MAX_FEE_RATE: '0.1%',
+    POSITION_CLOSE_DELAY_MS: 15000,
     TOP_TOKENS_COUNT: 25,
-    USE_TESTNET: false // Set to true for testing
+    USE_TESTNET: false
   };
 
   // State
-  let provider = null;
-  let signer = null;
+  let sdk = null;
   let walletAddress = null;
   let isConnected = false;
-  let agentWallet = null;
   let agentPrivateKey = null;
-  let assetMeta = null;
-  let assetContexts = null;
-
-  // Get API URL based on network
-  const getApiUrl = () => CONFIG.USE_TESTNET ? CONFIG.TESTNET_API : CONFIG.MAINNET_API;
+  let agentSdk = null;
 
   // Check if wallet is available
   const isWalletAvailable = () => {
     return typeof window !== 'undefined' && (window.ethereum || window.rabby);
   };
 
-  // Connect wallet (MetaMask or Rabby)
+  // Connect wallet
   const connectWallet = async (walletType = 'metamask') => {
     try {
-      let ethereum;
+      // Check for wallet
+      const ethereum = walletType === 'rabby' && window.rabby ? window.rabby : window.ethereum;
 
-      if (walletType === 'rabby' && window.rabby) {
-        ethereum = window.rabby;
-      } else if (window.ethereum) {
-        ethereum = window.ethereum;
-      } else {
-        throw new Error('No Web3 wallet detected. Please install MetaMask or Rabby.');
+      if (!ethereum) {
+        throw new Error('No Rabby or MetaMask wallet detected!');
       }
 
       console.log('Requesting wallet connection...');
 
-      // Request account access
+      // Request accounts
       const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-
       if (!accounts || accounts.length === 0) {
         throw new Error('No accounts found. Please unlock your wallet.');
       }
 
-      // Create ethers provider and signer
-      provider = new ethers.providers.Web3Provider(ethereum);
-      signer = provider.getSigner();
-      // IMPORTANT: Hyperliquid requires lowercase addresses for signing
-      walletAddress = (await signer.getAddress()).toLowerCase();
-      isConnected = true;
-
+      walletAddress = accounts[0].toLowerCase();
       console.log('Wallet connected:', walletAddress);
 
-      // Fetch asset metadata first
-      console.log('Fetching asset metadata...');
-      await fetchAssetMeta();
-
-      // Setup agent wallet and request approvals
-      console.log('Setting up agent wallet...');
-      const agentSetupSuccess = await setupAgentWallet();
-
-      if (!agentSetupSuccess) {
-        console.warn('Agent wallet setup incomplete - trading may not work');
+      // Step 1: Create agent wallet and get approval signature
+      console.log('=== STEP 1: Creating Agent Wallet ===');
+      const agentResult = await createAndApproveAgent(ethereum);
+      if (!agentResult.success) {
+        throw new Error('Agent wallet approval failed: ' + agentResult.error);
       }
+      console.log('Agent wallet created:', agentResult.agentAddress);
+
+      // Step 2: Approve builder fees
+      console.log('=== STEP 2: Approving Builder Fees ===');
+      const builderResult = await approveBuilderFee(ethereum);
+      if (!builderResult.success) {
+        console.warn('Builder fee approval failed (non-critical):', builderResult.error);
+      } else {
+        console.log('Builder fee approved');
+      }
+
+      // Initialize SDK with agent wallet for trading
+      agentSdk = new HyperliquidSDK.Hyperliquid({
+        privateKey: agentPrivateKey,
+        walletAddress: walletAddress,
+        testnet: CONFIG.USE_TESTNET
+      });
+
+      await agentSdk.connect();
+      isConnected = true;
 
       return {
         success: true,
@@ -93,142 +85,17 @@ const HyperliquidManager = (() => {
     }
   };
 
-  // Disconnect wallet
-  const disconnectWallet = () => {
-    provider = null;
-    signer = null;
-    walletAddress = null;
-    isConnected = false;
-    agentWallet = null;
-    agentPrivateKey = null;
-    console.log('Wallet disconnected');
-  };
-
-  // Fetch asset metadata and contexts from Hyperliquid
-  const fetchAssetMeta = async () => {
+  // Create agent wallet and get user approval
+  const createAndApproveAgent = async (ethereum) => {
     try {
-      const response = await fetch(getApiUrl() + '/info', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'metaAndAssetCtxs' })
-      });
-
-      // Get response as text first to handle errors better
-      const responseText = await response.text();
-
-      if (!response.ok) {
-        console.error('API error response:', responseText);
-        throw new Error('Failed to fetch asset metadata: ' + responseText);
-      }
-
-      // Parse JSON
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Failed to parse API response:', responseText);
-        throw new Error('Invalid JSON response from API');
-      }
-
-      assetMeta = data[0]; // Universe metadata
-      assetContexts = data[1]; // Asset contexts with prices, OI, etc.
-
-      console.log('Asset metadata loaded:', assetMeta.universe.length, 'assets');
-      return true;
-    } catch (error) {
-      console.error('Error fetching asset meta:', error);
-      throw error; // Re-throw to show in alert
-    }
-  };
-
-  // Get top tokens by open interest
-  const getTopTokensByOI = () => {
-    if (!assetMeta || !assetContexts) {
-      console.error('Asset data not loaded');
-      return [];
-    }
-
-    // Combine universe info with contexts
-    const assetsWithOI = assetMeta.universe.map((asset, index) => {
-      const context = assetContexts[index];
-      return {
-        name: asset.name,
-        index: index,
-        szDecimals: asset.szDecimals,
-        openInterest: parseFloat(context.openInterest || '0'),
-        markPrice: parseFloat(context.markPx || '0'),
-        maxLeverage: asset.maxLeverage || 50
-      };
-    });
-
-    // Sort by open interest descending and take top N
-    const topTokens = assetsWithOI
-      .filter(a => a.openInterest > 0 && a.markPrice > 0)
-      .sort((a, b) => b.openInterest - a.openInterest)
-      .slice(0, CONFIG.TOP_TOKENS_COUNT);
-
-    return topTokens;
-  };
-
-  // Get a random token from top 25 by OI
-  const getRandomTopToken = () => {
-    const topTokens = getTopTokensByOI();
-    if (topTokens.length === 0) {
-      // Fallback to BTC if no data
-      return { name: 'BTC', index: 0, szDecimals: 5, markPrice: 50000, maxLeverage: 50 };
-    }
-    const randomIndex = Math.floor(Math.random() * topTokens.length);
-    return topTokens[randomIndex];
-  };
-
-  // Setup agent wallet for Hyperliquid trading
-  const setupAgentWallet = async () => {
-    try {
-      // Generate a new random wallet for agent
-      agentWallet = ethers.Wallet.createRandom();
+      // Generate new agent wallet
+      const agentWallet = ethers.Wallet.createRandom();
       agentPrivateKey = agentWallet.privateKey;
+      const agentAddress = agentWallet.address.toLowerCase();
 
-      console.log('Agent wallet generated:', agentWallet.address);
-
-      // Request user to approve the agent wallet
-      const approved = await approveAgentWallet();
-      if (!approved) {
-        throw new Error('Agent wallet approval failed');
-      }
-
-      return true;
-    } catch (error) {
-      console.error('Agent wallet setup error:', error);
-      return false;
-    }
-  };
-
-  // Approve agent wallet via EIP-712 signature
-  const approveAgentWallet = async () => {
-    if (!signer || !agentWallet) {
-      console.error('Signer or agent wallet not available');
-      return false;
-    }
-
-    try {
       const nonce = Date.now();
 
-      // Get the ethereum provider
-      const ethereum = window.ethereum || window.rabby;
-      if (!ethereum) {
-        throw new Error('No ethereum provider found');
-      }
-
-      // IMPORTANT: All addresses must be lowercase for Hyperliquid
-      const agentAddr = agentWallet.address.toLowerCase();
-
-      console.log('=== AGENT WALLET APPROVAL ===');
-      console.log('Wallet address:', walletAddress);
-      console.log('Agent address:', agentAddr);
-      console.log('Nonce:', nonce);
-
-      // EIP-712 typed data structure for Hyperliquid
-      // Based on Hyperliquid's signature requirements
+      // EIP-712 typed data for approveAgent
       const typedData = {
         types: {
           EIP712Domain: [
@@ -248,118 +115,65 @@ const HyperliquidManager = (() => {
         domain: {
           name: 'HyperliquidSignTransaction',
           version: '1',
-          chainId: CONFIG.USER_SIGNED_CHAIN_ID,
+          chainId: 421614, // Arbitrum Sepolia for user-signed actions
           verifyingContract: '0x0000000000000000000000000000000000000000'
         },
         message: {
           hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
-          agentAddress: agentAddr,
+          agentAddress: agentAddress,
           agentName: 'PerpPlay',
           nonce: nonce
         }
       };
 
-      console.log('Requesting agent wallet approval signature...');
-      console.log('Typed data:', JSON.stringify(typedData, null, 2));
+      console.log('Requesting agent approval signature...');
 
-      // Request signature using eth_signTypedData_v4 directly via ethereum provider
-      let signature;
-      try {
-        console.log('Calling eth_signTypedData_v4 with address:', walletAddress);
-        signature = await ethereum.request({
-          method: 'eth_signTypedData_v4',
-          params: [walletAddress, JSON.stringify(typedData)]
-        });
-        console.log('Signature received:', signature);
-      } catch (signError) {
-        console.error('Signature request failed:', signError);
-        // User rejected or wallet error
-        if (signError.code === 4001) {
-          console.log('User rejected signature request');
-        }
-        throw signError;
-      }
-
-      // Split signature into r, s, v
-      const sig = ethers.utils.splitSignature(signature);
-
-      // Send approval to Hyperliquid
-      const requestBody = {
-        action: {
-          type: 'approveAgent',
-          hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
-          signatureChainId: CONFIG.USER_SIGNED_CHAIN_ID_HEX,
-          agentAddress: agentAddr,
-          agentName: 'PerpPlay',
-          nonce: nonce
-        },
-        nonce: nonce,
-        signature: {
-          r: sig.r,
-          s: sig.s,
-          v: sig.v
-        },
-        vaultAddress: null
-      };
-
-      console.log('Sending to Hyperliquid:', JSON.stringify(requestBody, null, 2));
-
-      const response = await fetch(getApiUrl() + '/exchange', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
+      // Request signature from user's wallet
+      const signature = await ethereum.request({
+        method: 'eth_signTypedData_v4',
+        params: [walletAddress, JSON.stringify(typedData)]
       });
 
-      const responseText = await response.text();
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (e) {
-        console.error('Failed to parse response:', responseText);
-        throw new Error('Invalid response: ' + responseText);
-      }
+      const sig = ethers.utils.splitSignature(signature);
+
+      // Send to Hyperliquid API
+      const response = await fetch('https://api.hyperliquid.xyz/exchange', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: {
+            type: 'approveAgent',
+            hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
+            signatureChainId: '0x66eee',
+            agentAddress: agentAddress,
+            agentName: 'PerpPlay',
+            nonce: nonce
+          },
+          nonce: nonce,
+          signature: { r: sig.r, s: sig.s, v: sig.v },
+          vaultAddress: null
+        })
+      });
+
+      const result = await response.json();
       console.log('Agent approval response:', result);
 
       if (result.status === 'ok') {
-        console.log('Agent wallet approved successfully');
-
-        // Now approve builder fee
-        await approveBuilderFee();
-
-        return true;
+        return { success: true, agentAddress: agentAddress };
       } else {
-        console.error('Agent approval failed:', result);
-        // Continue anyway for testing
-        return true;
+        return { success: false, error: result.response || 'Unknown error' };
       }
     } catch (error) {
-      console.error('Error approving agent wallet:', error);
-      console.error('Error details:', error.message, error.code);
-      // Continue anyway for testing
-      return true;
+      console.error('Agent approval error:', error);
+      return { success: false, error: error.message };
     }
   };
 
-  // Approve builder fee for the builder address
-  const approveBuilderFee = async () => {
-    if (!signer) {
-      console.error('Signer not available');
-      return false;
-    }
-
+  // Approve builder fee
+  const approveBuilderFee = async (ethereum) => {
     try {
       const nonce = Date.now();
 
-      // Get the ethereum provider
-      const ethereum = window.ethereum || window.rabby;
-      if (!ethereum) {
-        throw new Error('No ethereum provider found');
-      }
-
-      console.log('=== BUILDER FEE APPROVAL ===');
-      console.log('Builder address:', CONFIG.BUILDER_ADDRESS);
-
-      // EIP-712 typed data structure for Hyperliquid
       const typedData = {
         types: {
           EIP712Domain: [
@@ -379,552 +193,215 @@ const HyperliquidManager = (() => {
         domain: {
           name: 'HyperliquidSignTransaction',
           version: '1',
-          chainId: CONFIG.USER_SIGNED_CHAIN_ID,
+          chainId: 421614,
           verifyingContract: '0x0000000000000000000000000000000000000000'
         },
         message: {
           hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
-          maxFeeRate: '0.05%', // 5 basis points
+          maxFeeRate: CONFIG.MAX_FEE_RATE,
           builder: CONFIG.BUILDER_ADDRESS,
           nonce: nonce
         }
       };
 
       console.log('Requesting builder fee approval signature...');
-      console.log('Typed data:', JSON.stringify(typedData, null, 2));
 
-      // Request signature using eth_signTypedData_v4 directly via ethereum provider
-      let signature;
-      try {
-        console.log('Calling eth_signTypedData_v4 with address:', walletAddress);
-        signature = await ethereum.request({
-          method: 'eth_signTypedData_v4',
-          params: [walletAddress, JSON.stringify(typedData)]
-        });
-        console.log('Builder fee signature received:', signature);
-      } catch (signError) {
-        console.error('Builder fee signature request failed:', signError);
-        if (signError.code === 4001) {
-          console.log('User rejected builder fee signature request');
-        }
-        throw signError;
-      }
+      const signature = await ethereum.request({
+        method: 'eth_signTypedData_v4',
+        params: [walletAddress, JSON.stringify(typedData)]
+      });
 
       const sig = ethers.utils.splitSignature(signature);
 
-      const response = await fetch(getApiUrl() + '/exchange', {
+      const response = await fetch('https://api.hyperliquid.xyz/exchange', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: {
             type: 'approveBuilderFee',
             hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
-            signatureChainId: CONFIG.USER_SIGNED_CHAIN_ID_HEX,
-            maxFeeRate: '0.1%', // Max allowed is 0.10% for perps
+            signatureChainId: '0x66eee',
+            maxFeeRate: CONFIG.MAX_FEE_RATE,
             builder: CONFIG.BUILDER_ADDRESS,
             nonce: nonce
           },
           nonce: nonce,
-          signature: {
-            r: sig.r,
-            s: sig.s,
-            v: sig.v
-          },
-          vaultAddress: null
-        })
-      });
-
-      const responseText = await response.text();
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (e) {
-        console.error('Failed to parse builder fee response:', responseText);
-        // Don't fail - builder fee approval is optional
-        return true;
-      }
-      console.log('Builder fee approval result:', result);
-      return result.status === 'ok';
-    } catch (error) {
-      console.error('Error approving builder fee:', error);
-      console.error('Error details:', error.message, error.code);
-      return true; // Continue for demo
-    }
-  };
-
-  // Generate nonce for Hyperliquid
-  const generateNonce = () => {
-    return Date.now();
-  };
-
-  // Remove trailing zeros from a numeric string (required by Hyperliquid API)
-  const removeTrailingZeros = (str) => {
-    if (typeof str !== 'string') return str;
-    if (!str.includes('.')) return str;
-
-    // Remove trailing zeros after decimal point
-    let result = str.replace(/\.?0+$/, '');
-
-    // Handle edge case of "-0" -> "0"
-    if (result === '-0' || result === '-') result = '0';
-
-    // If we removed the decimal point entirely but string is empty, return "0"
-    if (result === '' || result === '.') result = '0';
-
-    return result;
-  };
-
-  // Recursively normalize an action by removing trailing zeros from 'p' and 's' fields
-  const normalizeTrailingZeros = (obj) => {
-    if (Array.isArray(obj)) {
-      return obj.map(normalizeTrailingZeros);
-    }
-    if (obj !== null && typeof obj === 'object') {
-      const result = {};
-      for (const key of Object.keys(obj)) {
-        const value = obj[key];
-        if ((key === 'p' || key === 's') && typeof value === 'string') {
-          result[key] = removeTrailingZeros(value);
-        } else {
-          result[key] = normalizeTrailingZeros(value);
-        }
-      }
-      return result;
-    }
-    return obj;
-  };
-
-  // Compute action hash for L1 signing (msgpack + nonce + vault)
-  const computeActionHash = (action, nonce, vaultAddress = null) => {
-    // Normalize the action to remove trailing zeros from 'p' and 's' fields
-    const normalizedAction = normalizeTrailingZeros(action);
-
-    console.log('Normalized action for hashing:', JSON.stringify(normalizedAction, null, 2));
-
-    // Use official msgpack library (loaded from CDN as MessagePack global)
-    const actionBytes = MessagePack.encode(normalizedAction);
-
-    console.log('Msgpack encoded length:', actionBytes.length);
-
-    // Convert nonce to 8-byte big-endian
-    const nonceBytes = new Uint8Array(8);
-    let n = nonce;
-    for (let i = 7; i >= 0; i--) {
-      nonceBytes[i] = n & 0xff;
-      n = Math.floor(n / 256);
-    }
-
-    // Vault address flag + address
-    let vaultBytes;
-    if (vaultAddress === null) {
-      vaultBytes = new Uint8Array([0x00]);
-    } else {
-      vaultBytes = new Uint8Array(21);
-      vaultBytes[0] = 0x01;
-      const addrBytes = ethers.utils.arrayify(vaultAddress);
-      vaultBytes.set(addrBytes, 1);
-    }
-
-    // Concatenate all parts
-    const totalLen = actionBytes.length + nonceBytes.length + vaultBytes.length;
-    const data = new Uint8Array(totalLen);
-    data.set(actionBytes, 0);
-    data.set(nonceBytes, actionBytes.length);
-    data.set(vaultBytes, actionBytes.length + nonceBytes.length);
-
-    return ethers.utils.keccak256(data);
-  };
-
-  // Sign an order action using agent wallet
-  const signOrderAction = async (action, nonce) => {
-    if (!agentWallet || !walletAddress) {
-      throw new Error('Agent wallet or user address not available');
-    }
-
-    // IMPORTANT: Use lowercase addresses
-    const agentAddr = agentWallet.address.toLowerCase();
-
-    console.log('=== SIGNING ORDER ===');
-    console.log('User address:', walletAddress);
-    console.log('Agent address:', agentAddr);
-    console.log('Agent private key (first 10 chars):', agentPrivateKey.substring(0, 10) + '...');
-
-    // Create a connected wallet for signing
-    const agentSigner = new ethers.Wallet(agentPrivateKey);
-    console.log('Agent signer address:', agentSigner.address.toLowerCase());
-
-    // Verify the agent signer matches our agent wallet
-    if (agentSigner.address.toLowerCase() !== agentAddr) {
-      console.error('CRITICAL: Agent signer address mismatch!');
-      console.error('Expected:', agentAddr);
-      console.error('Got:', agentSigner.address.toLowerCase());
-    }
-
-    // Compute connectionId as hash of action (msgpack encoded) + nonce + vault
-    const connectionId = computeActionHash(action, nonce, null);
-    console.log('ConnectionId (action hash):', connectionId);
-
-    // For L1 actions (orders), domain name is "Exchange" and chainId is 1337
-    const domain = {
-      name: 'Exchange',
-      version: '1',
-      chainId: CONFIG.L1_CHAIN_ID,
-      verifyingContract: '0x0000000000000000000000000000000000000000'
-    };
-
-    const types = {
-      Agent: [
-        { name: 'source', type: 'string' },
-        { name: 'connectionId', type: 'bytes32' }
-      ]
-    };
-
-    const message = {
-      source: CONFIG.USE_TESTNET ? 'b' : 'a', // 'a' for mainnet, 'b' for testnet
-      connectionId: connectionId
-    };
-
-    console.log('Signing with domain:', JSON.stringify(domain));
-    console.log('Signing with types:', JSON.stringify(types));
-    console.log('Signing message:', JSON.stringify(message));
-
-    const signature = await agentSigner._signTypedData(domain, types, message);
-    console.log('Agent signature:', signature);
-
-    // Verify the signature recovers to our agent address
-    try {
-      const recoveredAddr = ethers.utils.verifyTypedData(domain, types, message, signature);
-      console.log('Recovered signer address:', recoveredAddr.toLowerCase());
-      if (recoveredAddr.toLowerCase() !== agentAddr) {
-        console.error('SIGNATURE VERIFICATION FAILED!');
-        console.error('Expected:', agentAddr);
-        console.error('Recovered:', recoveredAddr.toLowerCase());
-      } else {
-        console.log('Signature verification SUCCESS - addresses match');
-      }
-    } catch (verifyError) {
-      console.error('Signature verification error:', verifyError);
-    }
-
-    return ethers.utils.splitSignature(signature);
-  };
-
-  // Open a long position
-  const openLongPosition = async (token, collateralUsd = 10) => {
-    if (!isConnected || !agentWallet) {
-      throw new Error('Wallet not connected or agent not setup');
-    }
-
-    try {
-      // Refresh asset data for latest prices
-      await fetchAssetMeta();
-
-      // Calculate position size
-      const markPrice = token.markPrice;
-      const maxLev = token.maxLeverage || 50;
-
-      // Use 20x if available, otherwise use 10x, capped at token's max
-      let leverage;
-      if (maxLev >= 20) {
-        leverage = 20;
-      } else if (maxLev >= 10) {
-        leverage = 10;
-      } else {
-        leverage = maxLev;
-      }
-
-      // Position size = collateral * leverage / price
-      const sizeUsd = collateralUsd * leverage;
-
-      // Size in base units (amount of asset to buy)
-      const sizeBase = sizeUsd / markPrice;
-
-      // Round to appropriate decimals
-      const szDecimals = token.szDecimals || 4;
-      const roundedSize = Math.round(sizeBase * Math.pow(10, szDecimals)) / Math.pow(10, szDecimals);
-
-      const nonce = generateNonce();
-
-      // Order structure for Hyperliquid
-      // CRITICAL: Key order MUST be exactly: a, b, p, s, r, t, c (c omitted if null)
-      const order = {
-        a: token.index,
-        b: true,
-        p: markPrice.toString(),
-        s: roundedSize.toString(),
-        r: false,
-        t: {
-          limit: {
-            tif: 'Ioc'
-          }
-        }
-        // c (cloid) is omitted when null - don't include null values
-      };
-
-      // Action structure for Hyperliquid
-      // CRITICAL: Key order MUST be: type, orders, grouping, builder (if present)
-      const action = {
-        type: 'order',
-        orders: [order],
-        grouping: 'na',
-        builder: {
-          b: CONFIG.BUILDER_ADDRESS,
-          f: CONFIG.BUILDER_FEE_BPS
-        }
-      };
-
-      console.log('Order action:', JSON.stringify(action, null, 2));
-
-      // Sign the action
-      const signature = await signOrderAction(action, nonce);
-
-      // Submit to Hyperliquid
-      const response = await fetch(getApiUrl() + '/exchange', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: action,
-          nonce: nonce,
-          signature: signature,
+          signature: { r: sig.r, s: sig.s, v: sig.v },
           vaultAddress: null
         })
       });
 
       const result = await response.json();
-      console.log('Open position result:', result);
+      console.log('Builder fee approval response:', result);
+
+      return { success: result.status === 'ok', error: result.response };
+    } catch (error) {
+      console.error('Builder fee approval error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Disconnect wallet
+  const disconnectWallet = () => {
+    sdk = null;
+    agentSdk = null;
+    walletAddress = null;
+    isConnected = false;
+    agentPrivateKey = null;
+    console.log('Wallet disconnected');
+  };
+
+  // Get top tokens by open interest
+  const getTopTokensByOI = async () => {
+    try {
+      const response = await fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'metaAndAssetCtxs' })
+      });
+
+      const data = await response.json();
+      const meta = data[0];
+      const contexts = data[1];
+
+      const assets = meta.universe.map((asset, index) => ({
+        name: asset.name,
+        index: index,
+        szDecimals: asset.szDecimals,
+        openInterest: parseFloat(contexts[index]?.openInterest || '0'),
+        markPrice: parseFloat(contexts[index]?.markPx || '0'),
+        maxLeverage: asset.maxLeverage || 50
+      }));
+
+      return assets
+        .filter(a => a.openInterest > 0 && a.markPrice > 0)
+        .sort((a, b) => b.openInterest - a.openInterest)
+        .slice(0, CONFIG.TOP_TOKENS_COUNT);
+    } catch (error) {
+      console.error('Error fetching tokens:', error);
+      return [];
+    }
+  };
+
+  // Get random top token
+  const getRandomTopToken = async () => {
+    const tokens = await getTopTokensByOI();
+    if (tokens.length === 0) return null;
+    return tokens[Math.floor(Math.random() * tokens.length)];
+  };
+
+  // Open a long position using the SDK
+  const openLongPosition = async (token, collateralUsd = 10) => {
+    if (!agentSdk || !isConnected) {
+      throw new Error('Not connected');
+    }
+
+    try {
+      const leverage = Math.min(token.maxLeverage, 20);
+      const sizeUsd = collateralUsd * leverage;
+      const sizeBase = sizeUsd / token.markPrice;
+      const roundedSize = Math.round(sizeBase * Math.pow(10, token.szDecimals)) / Math.pow(10, token.szDecimals);
+
+      console.log(`Opening LONG: ${token.name}, size: ${roundedSize}, leverage: ${leverage}x`);
+
+      // Use SDK to place order
+      const result = await agentSdk.exchange.placeOrder({
+        coin: token.name,
+        is_buy: true,
+        sz: roundedSize,
+        limit_px: token.markPrice * 1.01, // 1% slippage
+        order_type: { limit: { tif: 'Ioc' } },
+        reduce_only: false,
+        builder: {
+          b: CONFIG.BUILDER_ADDRESS,
+          f: CONFIG.BUILDER_FEE_BPS
+        }
+      });
+
+      console.log('Order result:', result);
 
       return {
-        success: result.status === 'ok' || result.response?.type === 'order',
+        success: true,
         token: token.name,
         side: 'LONG',
         size: roundedSize,
         leverage: leverage,
         collateral: collateralUsd,
-        entryPrice: markPrice,
+        entryPrice: token.markPrice,
         result: result
       };
     } catch (error) {
       console.error('Error opening position:', error);
-      return {
-        success: false,
-        error: error.message
-      };
+      return { success: false, error: error.message };
     }
   };
 
   // Close a position
   const closePosition = async (token, size) => {
-    if (!isConnected || !agentWallet) {
-      throw new Error('Wallet not connected');
+    if (!agentSdk || !isConnected) {
+      throw new Error('Not connected');
     }
 
     try {
-      // Refresh prices
-      await fetchAssetMeta();
+      // Get current price
+      const tokens = await getTopTokensByOI();
+      const currentToken = tokens.find(t => t.name === token.name);
+      const currentPrice = currentToken?.markPrice || token.markPrice;
 
-      const context = assetContexts[token.index];
-      const markPrice = parseFloat(context.markPx);
-
-      const nonce = generateNonce();
-
-      // Close order (opposite direction, reduce only)
-      // CRITICAL: Key order MUST be exactly: a, b, p, s, r, t (c omitted when null)
-      const order = {
-        a: token.index,
-        b: false,
-        p: markPrice.toString(),
-        s: Math.abs(size).toString(),
-        r: true,
-        t: {
-          limit: {
-            tif: 'Ioc'
-          }
-        }
-        // c (cloid) omitted when null
-      };
-
-      const action = {
-        type: 'order',
-        orders: [order],
-        grouping: 'na',
-        builder: {
-          b: CONFIG.BUILDER_ADDRESS,
-          f: CONFIG.BUILDER_FEE_BPS
-        }
-      };
-
-      const signature = await signOrderAction(action, nonce);
-
-      const response = await fetch(getApiUrl() + '/exchange', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: action,
-          nonce: nonce,
-          signature: signature,
-          vaultAddress: null
-        })
+      const result = await agentSdk.exchange.placeOrder({
+        coin: token.name,
+        is_buy: false,
+        sz: Math.abs(size),
+        limit_px: currentPrice * 0.99, // 1% slippage
+        order_type: { limit: { tif: 'Ioc' } },
+        reduce_only: true
       });
 
-      const result = await response.json();
-      console.log('Close position result:', result);
+      console.log('Close result:', result);
 
       return {
-        success: result.status === 'ok' || result.response?.type === 'order',
-        closePrice: markPrice,
+        success: true,
+        exitPrice: currentPrice,
         result: result
       };
     } catch (error) {
       console.error('Error closing position:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  };
-
-  // Execute a PerpPlay trade (open long, close after 15s)
-  const executePerpPlayTrade = async (onUpdate, collateralUsd = 10) => {
-    if (!isConnected) {
-      return { success: false, error: 'Wallet not connected' };
-    }
-
-    try {
-      // Get random token from top 25
-      const token = getRandomTopToken();
-
-      // Determine actual leverage (20x if available, else 10x)
-      const maxLev = token.maxLeverage || 50;
-      const actualLeverage = maxLev >= 20 ? 20 : (maxLev >= 10 ? 10 : maxLev);
-
-      if (onUpdate) {
-        onUpdate({
-          phase: 'opening',
-          token: token.name,
-          side: 'LONG',
-          leverage: actualLeverage,
-          collateral: collateralUsd
-        });
-      }
-
-      // Open position
-      const openResult = await openLongPosition(token, collateralUsd);
-
-      if (!openResult.success) {
-        if (onUpdate) {
-          onUpdate({
-            phase: 'error',
-            error: openResult.error || 'Failed to open position'
-          });
-        }
-        return openResult;
-      }
-
-      const entryPrice = openResult.entryPrice;
-      const size = openResult.size;
-
-      if (onUpdate) {
-        onUpdate({
-          phase: 'open',
-          token: token.name,
-          side: 'LONG',
-          leverage: openResult.leverage,
-          collateral: collateralUsd,
-          size: size,
-          entryPrice: entryPrice
-        });
-      }
-
-      // Wait 15 seconds then close
-      await new Promise((resolve) => {
-        let countdown = 15;
-        const interval = setInterval(() => {
-          countdown--;
-          if (onUpdate) {
-            onUpdate({
-              phase: 'countdown',
-              secondsRemaining: countdown,
-              token: token.name,
-              entryPrice: entryPrice
-            });
-          }
-          if (countdown <= 0) {
-            clearInterval(interval);
-            resolve();
-          }
-        }, 1000);
-      });
-
-      if (onUpdate) {
-        onUpdate({
-          phase: 'closing',
-          token: token.name
-        });
-      }
-
-      // Close position
-      const closeResult = await closePosition(token, size);
-
-      // Calculate PnL
-      const closePrice = closeResult.closePrice || entryPrice;
-      const priceDiff = closePrice - entryPrice;
-      const leverage = openResult.leverage;
-      const pnlPercent = (priceDiff / entryPrice) * 100 * leverage;
-      const pnlUsd = (priceDiff * size * leverage);
-
-      const finalResult = {
-        success: closeResult.success,
-        token: token.name,
-        side: 'LONG',
-        leverage: leverage,
-        collateral: collateralUsd,
-        size: size,
-        entryPrice: entryPrice,
-        closePrice: closePrice,
-        pnlPercent: pnlPercent,
-        pnlUsd: pnlUsd
-      };
-
-      if (onUpdate) {
-        onUpdate({
-          phase: 'closed',
-          ...finalResult
-        });
-      }
-
-      return finalResult;
-    } catch (error) {
-      console.error('PerpPlay trade error:', error);
-      if (onUpdate) {
-        onUpdate({
-          phase: 'error',
-          error: error.message
-        });
-      }
       return { success: false, error: error.message };
     }
   };
 
-  // Get connection status
-  const getConnectionStatus = () => ({
-    isConnected,
-    walletAddress,
-    hasAgentWallet: !!agentWallet
-  });
+  // Execute a PerpPlay trade (open, wait, close)
+  const executePerpPlayTrade = async (collateralUsd = 10) => {
+    const token = await getRandomTopToken();
+    if (!token) {
+      return { success: false, error: 'No tokens available' };
+    }
+
+    const openResult = await openLongPosition(token, collateralUsd);
+    if (!openResult.success) {
+      return openResult;
+    }
+
+    return {
+      success: true,
+      token: token,
+      openResult: openResult,
+      closeAfterMs: CONFIG.POSITION_CLOSE_DELAY_MS
+    };
+  };
 
   // Public API
   return {
     isWalletAvailable,
     connectWallet,
     disconnectWallet,
-    getConnectionStatus,
     getTopTokensByOI,
     getRandomTopToken,
+    openLongPosition,
+    closePosition,
     executePerpPlayTrade,
-    approveBuilderFee,
+    get isConnected() { return isConnected; },
+    get walletAddress() { return walletAddress; },
     CONFIG
   };
 })();
-
-// Export for use in other scripts
-window.HyperliquidManager = HyperliquidManager;
