@@ -115,7 +115,7 @@ const HyperliquidManager = (() => {
         domain: {
           name: 'HyperliquidSignTransaction',
           version: '1',
-          chainId: 421614, // Arbitrum Sepolia for user-signed actions
+          chainId: 42161, // Arbitrum One mainnet for user-signed actions
           verifyingContract: '0x0000000000000000000000000000000000000000'
         },
         message: {
@@ -144,7 +144,7 @@ const HyperliquidManager = (() => {
           action: {
             type: 'approveAgent',
             hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
-            signatureChainId: '0x66eee',
+            signatureChainId: '0xa4b1',
             agentAddress: agentAddress,
             agentName: 'PerpPlay',
             nonce: nonce
@@ -193,7 +193,7 @@ const HyperliquidManager = (() => {
         domain: {
           name: 'HyperliquidSignTransaction',
           version: '1',
-          chainId: 421614,
+          chainId: 42161, // Arbitrum One mainnet
           verifyingContract: '0x0000000000000000000000000000000000000000'
         },
         message: {
@@ -220,7 +220,7 @@ const HyperliquidManager = (() => {
           action: {
             type: 'approveBuilderFee',
             hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
-            signatureChainId: '0x66eee',
+            signatureChainId: '0xa4b1',
             maxFeeRate: CONFIG.MAX_FEE_RATE,
             builder: CONFIG.BUILDER_ADDRESS,
             nonce: nonce
