@@ -5,7 +5,7 @@ window.HyperliquidManager = (() => {
   // Configuration
   const CONFIG = {
     BUILDER_ADDRESS: '0x7b4497c1b70de6546b551bdf8f951da53b71b97d',
-    BUILDER_FEE_BPS: 50, // 5 basis points in tenths (50 = 5 bps)
+    BUILDER_FEE_BPS: 20, // 2 basis points in tenths (20 = 2 bps)
     MAX_FEE_RATE: '0.1%',
     TOP_TOKENS_COUNT: 50,
     MIN_OPEN_INTEREST: 5000000, // $5M minimum OI for liquidity
@@ -737,13 +737,17 @@ window.HyperliquidManager = (() => {
     const results = [];
     let totalPnl = 0;
 
-    for (let i = 0; i < gamePositions.length; i++) {
-      const position = gamePositions[i];
+    // IMPORTANT: Make a copy of the array since closePosition modifies gamePositions
+    const positionsToClose = [...gamePositions];
+    const totalPositions = positionsToClose.length;
+
+    for (let i = 0; i < positionsToClose.length; i++) {
+      const position = positionsToClose[i];
       if (onProgress) {
         onProgress({
           phase: 'closing',
           current: i + 1,
-          total: gamePositions.length + results.length,
+          total: totalPositions,
           token: position.tokenName
         });
       }
