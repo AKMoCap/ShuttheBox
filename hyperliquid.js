@@ -6,11 +6,20 @@ window.HyperliquidManager = (() => {
   const CONFIG = {
     BUILDER_ADDRESS: '0x7b4497c1b70de6546b551bdf8f951da53b71b97d',
     BUILDER_FEE_BPS: 20, // 2 basis points in tenths (20 = 2 bps)
+    TAKER_FEE_BPS: 35, // Hyperliquid taker fee ~3.5 bps
     MAX_FEE_RATE: '0.1%',
     TOP_TOKENS_COUNT: 50,
     MIN_OPEN_INTEREST: 5000000, // $5M minimum OI for liquidity
     USE_TESTNET: false,
     STORAGE_KEY: 'perpplay_wallet_data'
+  };
+
+  // Helper to calculate trading fees
+  const calculateTradeFee = (notionalValue) => {
+    // Total fee = taker fee + builder fee per trade
+    // Both are in basis points (1 bp = 0.01% = 0.0001)
+    const totalFeeBps = CONFIG.TAKER_FEE_BPS + CONFIG.BUILDER_FEE_BPS;
+    return notionalValue * (totalFeeBps / 10000);
   };
 
   // State
@@ -709,12 +718,23 @@ window.HyperliquidManager = (() => {
 
       console.log('Close result:', result);
 
-      // Calculate PnL
+      // Calculate PnL including trading fees
       const priceDiff = currentPrice - position.entryPrice;
-      const pnlUsd = position.side === 'LONG'
+      const rawPnl = position.side === 'LONG'
         ? priceDiff * position.size
         : -priceDiff * position.size;
+
+      // Deduct trading fees (entry + exit)
+      const entryNotional = Math.abs(position.size) * position.entryPrice;
+      const exitNotional = Math.abs(position.size) * currentPrice;
+      const entryFee = calculateTradeFee(entryNotional);
+      const exitFee = calculateTradeFee(exitNotional);
+      const totalFees = entryFee + exitFee;
+
+      const pnlUsd = rawPnl - totalFees;
       const pnlPercent = (pnlUsd / position.collateral) * 100;
+
+      console.log(`P&L breakdown: Raw ${rawPnl.toFixed(2)}, Fees ${totalFees.toFixed(2)}, Net ${pnlUsd.toFixed(2)}`);
 
       // Remove from game positions
       gamePositions = gamePositions.filter(p => p.id !== position.id);
@@ -855,9 +875,18 @@ window.HyperliquidManager = (() => {
         const currentPrice = currentToken?.markPrice || pos.entryPrice;
 
         const priceDiff = currentPrice - pos.entryPrice;
-        const pnlUsd = pos.side === 'LONG'
+        const rawPnl = pos.side === 'LONG'
           ? priceDiff * pos.size
           : -priceDiff * pos.size;
+
+        // Estimate fees (entry already paid + estimated exit)
+        const entryNotional = Math.abs(pos.size) * pos.entryPrice;
+        const exitNotional = Math.abs(pos.size) * currentPrice;
+        const entryFee = calculateTradeFee(entryNotional);
+        const exitFee = calculateTradeFee(exitNotional);
+        const totalFees = entryFee + exitFee;
+
+        const pnlUsd = rawPnl - totalFees;
         const pnlPercent = (pnlUsd / pos.collateral) * 100;
 
         return {
