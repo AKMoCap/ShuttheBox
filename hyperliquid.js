@@ -9,7 +9,8 @@ window.HyperliquidManager = (() => {
     MAX_FEE_RATE: '0.1%',
     TOP_TOKENS_COUNT: 50,
     MIN_OPEN_INTEREST: 5000000, // $5M minimum OI for liquidity
-    USE_TESTNET: false
+    USE_TESTNET: false,
+    STORAGE_KEY: 'perpplay_wallet_data'
   };
 
   // Helper to get correct chain ID based on network
@@ -22,6 +23,143 @@ window.HyperliquidManager = (() => {
   let agentPrivateKey = null;
   let agentWallet = null;
   let gamePositions = []; // Track positions opened during current game
+
+  // ───────── LocalStorage Persistence ─────────
+  const saveWalletData = () => {
+    if (!walletAddress || !agentPrivateKey) return;
+
+    const data = {
+      walletAddress: walletAddress,
+      agentPrivateKey: agentPrivateKey,
+      timestamp: Date.now()
+    };
+
+    try {
+      localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(data));
+      console.log('Wallet data saved to localStorage');
+    } catch (error) {
+      console.error('Failed to save wallet data:', error);
+    }
+  };
+
+  const loadWalletData = () => {
+    try {
+      const stored = localStorage.getItem(CONFIG.STORAGE_KEY);
+      if (!stored) return null;
+      return JSON.parse(stored);
+    } catch (error) {
+      console.error('Failed to load wallet data:', error);
+      return null;
+    }
+  };
+
+  const clearWalletData = () => {
+    try {
+      localStorage.removeItem(CONFIG.STORAGE_KEY);
+      console.log('Wallet data cleared from localStorage');
+    } catch (error) {
+      console.error('Failed to clear wallet data:', error);
+    }
+  };
+
+  // Check if agent is still valid with Hyperliquid
+  const verifyAgentApproval = async (userAddress, agentAddress) => {
+    try {
+      const response = await fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'extraAgents',
+          user: userAddress
+        })
+      });
+
+      const agents = await response.json();
+      // Check if our agent is in the list of approved agents
+      return agents.some(agent =>
+        agent.agentAddress?.toLowerCase() === agentAddress.toLowerCase() &&
+        agent.agentName === 'PerpPlay'
+      );
+    } catch (error) {
+      console.error('Error verifying agent:', error);
+      return false;
+    }
+  };
+
+  // Try to reconnect using stored credentials
+  const tryReconnect = async () => {
+    const stored = loadWalletData();
+    if (!stored) {
+      console.log('No stored wallet data found');
+      return { success: false, reason: 'no_stored_data' };
+    }
+
+    console.log('Found stored wallet data, attempting to reconnect...');
+
+    try {
+      const ethereum = window.ethereum || window.rabby;
+      if (!ethereum) {
+        console.log('No wallet extension found');
+        return { success: false, reason: 'no_wallet' };
+      }
+
+      // Check if wallet is already connected (don't prompt)
+      let accounts;
+      try {
+        accounts = await ethereum.request({ method: 'eth_accounts' });
+      } catch (e) {
+        return { success: false, reason: 'wallet_locked' };
+      }
+
+      if (!accounts || accounts.length === 0) {
+        console.log('Wallet not connected or locked');
+        return { success: false, reason: 'wallet_locked' };
+      }
+
+      const currentAddress = accounts[0].toLowerCase();
+
+      // Verify it's the same wallet that created the agent
+      if (currentAddress !== stored.walletAddress.toLowerCase()) {
+        console.log('Connected wallet differs from stored wallet');
+        clearWalletData(); // Clear since wallet changed
+        return { success: false, reason: 'wallet_mismatch' };
+      }
+
+      // Restore the agent wallet from stored private key
+      const restoredAgentWallet = new ethers.Wallet(stored.agentPrivateKey);
+      const agentAddress = restoredAgentWallet.address.toLowerCase();
+
+      // Verify the agent is still approved with Hyperliquid
+      console.log('Verifying agent approval with Hyperliquid...');
+      const isApproved = await verifyAgentApproval(currentAddress, agentAddress);
+
+      if (!isApproved) {
+        console.log('Agent no longer approved, clearing stored data');
+        clearWalletData();
+        return { success: false, reason: 'agent_expired' };
+      }
+
+      // Success! Restore the connection state
+      walletAddress = currentAddress;
+      agentPrivateKey = stored.agentPrivateKey;
+      agentWallet = restoredAgentWallet;
+      isConnected = true;
+
+      console.log('Successfully reconnected with stored credentials');
+      console.log('Wallet:', walletAddress);
+      console.log('Agent:', agentAddress);
+
+      return {
+        success: true,
+        address: walletAddress,
+        restored: true
+      };
+
+    } catch (error) {
+      console.error('Reconnection error:', error);
+      return { success: false, reason: 'error', error: error.message };
+    }
+  };
 
   // Arbitrum One network config
   const ARBITRUM_ONE = {
@@ -110,6 +248,9 @@ window.HyperliquidManager = (() => {
       // Store agent wallet for signing orders
       agentWallet = new ethers.Wallet(agentPrivateKey);
       isConnected = true;
+
+      // Save credentials to localStorage for future reconnection
+      saveWalletData();
 
       return {
         success: true,
@@ -283,6 +424,10 @@ window.HyperliquidManager = (() => {
     isConnected = false;
     agentPrivateKey = null;
     gamePositions = [];
+
+    // Clear stored credentials
+    clearWalletData();
+
     console.log('Wallet disconnected');
   };
 
@@ -683,6 +828,7 @@ window.HyperliquidManager = (() => {
     isWalletAvailable,
     connectWallet,
     disconnectWallet,
+    tryReconnect,
     getTopTokensByOI,
     getRandomTopToken,
     openPosition,
