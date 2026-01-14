@@ -14,7 +14,7 @@ const HyperliquidManager = (() => {
     L1_CHAIN_ID: 1337,
     L1_CHAIN_ID_HEX: '0x539',
     BUILDER_ADDRESS: '0x7b4497c1b70de6546b551bdf8f951da53b71b97d', // Must be lowercase!
-    BUILDER_FEE_BPS: 5, // 5 basis points = 0.05%
+    BUILDER_FEE_BPS: 50, // 5 basis points = 0.05% (value is in tenths of bps)
     LEVERAGE: 20,
     POSITION_CLOSE_DELAY_MS: 15000, // 15 seconds
     TOP_TOKENS_COUNT: 25,
@@ -437,8 +437,8 @@ const HyperliquidManager = (() => {
           action: {
             type: 'approveBuilderFee',
             hyperliquidChain: CONFIG.USE_TESTNET ? 'Testnet' : 'Mainnet',
-            signatureChainId: getUserSignedChainIdHex(),
-            maxFeeRate: '0.05%',
+            signatureChainId: CONFIG.USER_SIGNED_CHAIN_ID_HEX,
+            maxFeeRate: '0.1%', // Max allowed is 0.10% for perps
             builder: CONFIG.BUILDER_ADDRESS,
             nonce: nonce
           },
@@ -452,7 +452,15 @@ const HyperliquidManager = (() => {
         })
       });
 
-      const result = await response.json();
+      const responseText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Failed to parse builder fee response:', responseText);
+        // Don't fail - builder fee approval is optional
+        return true;
+      }
       console.log('Builder fee approval result:', result);
       
       if (result.status === 'ok') {
