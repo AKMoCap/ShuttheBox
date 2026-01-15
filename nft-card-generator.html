@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>NFT Card Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
     body {
       background: #1a1a2e;
@@ -12,7 +15,7 @@
       justify-content: center;
       min-height: 100vh;
       margin: 0;
-      font-family: Arial, sans-serif;
+      font-family: 'Libre Franklin', Arial, sans-serif;
     }
     
     .controls {
@@ -60,9 +63,14 @@
     const hlLogo = new Image();
     hlLogo.src = 'attached_assets/HL_symbol_white_1768442760084.png';
     
-    hlLogo.onload = () => {
-      drawCard(document.getElementById('cardCanvas'), 1);
-    };
+    document.fonts.ready.then(() => {
+      hlLogo.onload = () => {
+        drawCard(document.getElementById('cardCanvas'), 1);
+      };
+      if (hlLogo.complete) {
+        drawCard(document.getElementById('cardCanvas'), 1);
+      }
+    });
     
     function drawCard(canvas, scale) {
       const ctx = canvas.getContext('2d');
@@ -87,20 +95,23 @@
       ctx.stroke();
       
       ctx.fillStyle = '#00d4ff';
-      ctx.font = `bold ${14 * s}px Arial, sans-serif`;
+      ctx.shadowColor = '#00d4ff';
+      ctx.shadowBlur = 8 * s;
+      ctx.font = `400 ${18 * s}px 'Libre Franklin', sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText('Certified', w / 2, 40 * s);
-      ctx.fillText('Box Shutter', w / 2, 58 * s);
+      ctx.fillText('Certified', w / 2, 48 * s);
+      ctx.fillText('Box Shutter', w / 2, 70 * s);
       
-      ctx.font = `bold ${72 * s}px Arial, sans-serif`;
-      ctx.fillText('A', w / 2 - 20 * s, h / 2 + 10 * s);
+      ctx.shadowBlur = 0;
       
-      ctx.font = `${36 * s}px Arial, sans-serif`;
-      ctx.fillText('♠', w / 2 + 38 * s, h / 2 - 5 * s);
+      ctx.font = `400 ${80 * s}px 'Libre Franklin', sans-serif`;
+      const aceText = 'A♠';
+      ctx.fillText(aceText, w / 2, h / 2 + 20 * s);
       
-      const logoSize = 50 * s;
+      ctx.shadowBlur = 0;
+      const logoSize = 70 * s;
       const logoX = (w - logoSize) / 2;
-      const logoY = h - 70 * s;
+      const logoY = h - 110 * s;
       ctx.drawImage(hlLogo, logoX, logoY, logoSize, logoSize);
     }
     
