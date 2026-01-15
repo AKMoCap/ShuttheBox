@@ -971,7 +971,6 @@ document.addEventListener("DOMContentLoaded", () => {
       // Build table rows
       leaderboardBody.innerHTML = entries.map((entry, index) => {
         const rank = index + 1;
-        const truncatedAddr = `${entry.address.slice(0, 6)}...${entry.address.slice(-4)}`;
         const isCurrentWallet = connectedWalletAddress &&
           entry.address.toLowerCase() === connectedWalletAddress.toLowerCase();
         const rowClass = isCurrentWallet ? 'current-wallet' : '';
@@ -979,17 +978,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
         return `<tr class="${rowClass}">
           <td>${rankDisplay}</td>
-          <td>${truncatedAddr}</td>
           <td>${entry.points.toLocaleString()}</td>
         </tr>`;
       }).join('');
 
       if (entries.length === 0) {
-        leaderboardBody.innerHTML = '<tr><td colspan="3">No players yet</td></tr>';
+        leaderboardBody.innerHTML = '<tr><td colspan="2">No players yet</td></tr>';
       }
     } catch (error) {
       console.error('Error loading leaderboard:', error);
-      leaderboardBody.innerHTML = '<tr><td colspan="3">Error loading leaderboard</td></tr>';
+      leaderboardBody.innerHTML = '<tr><td colspan="2">Error loading leaderboard</td></tr>';
     }
   }
 
