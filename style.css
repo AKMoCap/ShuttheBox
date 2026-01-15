@@ -78,6 +78,14 @@ h1 {
   text-align: center;
 }
 
+.odds-display-left .odds-label {
+  font-size: 1.25rem;
+}
+
+.odds-display-left .odds-value {
+  font-size: 1.5rem;
+}
+
 /* Hide left container on mobile */
 @media (max-width: 1200px) {
   .left-container {
@@ -101,8 +109,8 @@ h1 {
 
 /* Hide odds on right side on desktop (show on mobile) */
 @media (min-width: 1201px) {
-  .odds-display-right {
-    display: none;
+  #immediateOddsDisplay.odds-display-right {
+    display: none !important;
   }
 }
 
