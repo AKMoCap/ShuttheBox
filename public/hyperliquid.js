@@ -277,14 +277,16 @@ window.HyperliquidManager = (() => {
       }
       console.log('Agent wallet created:', agentResult.agentAddress);
 
-      // Step 2: Approve builder fees
+      // Step 2: Approve builder fees (REQUIRED for trading)
       console.log('=== STEP 2: Approving Builder Fees ===');
       const builderResult = await approveBuilderFee(ethereum);
       if (!builderResult.success) {
-        console.warn('Builder fee approval failed (non-critical):', builderResult.error);
-      } else {
-        console.log('Builder fee approved');
+        console.error('Builder fee approval failed:', builderResult.error);
+        throw new Error('Builder fee approval failed: ' + (builderResult.error || 'Unknown error'));
       }
+      console.log('Builder fee approved, waiting for propagation...');
+      // Wait for builder fee approval to propagate
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Store agent wallet for signing orders
       agentWallet = new ethers.Wallet(agentPrivateKey);
@@ -453,11 +455,16 @@ window.HyperliquidManager = (() => {
         }
       };
 
-      console.log('Requesting builder fee approval signature...');
+      console.log('Requesting builder fee approval signature for wallet:', walletAddress);
+
+      // Get the original address from ethereum (may need checksummed version)
+      const accounts = await ethereum.request({ method: 'eth_accounts' });
+      const signingAddress = accounts[0]; // Use original case from wallet
+      console.log('Using signing address:', signingAddress);
 
       const signature = await ethereum.request({
         method: 'eth_signTypedData_v4',
-        params: [walletAddress, JSON.stringify(typedData)]
+        params: [signingAddress, JSON.stringify(typedData)]
       });
 
       const sig = ethers.utils.splitSignature(signature);
@@ -481,9 +488,15 @@ window.HyperliquidManager = (() => {
       });
 
       const result = await response.json();
-      console.log('Builder fee approval response:', result);
+      console.log('Builder fee approval response:', JSON.stringify(result));
 
-      return { success: result.status === 'ok', error: result.response };
+      if (result.status === 'ok') {
+        console.log('Builder fee approval successful');
+        return { success: true };
+      } else {
+        console.error('Builder fee approval rejected:', result.response);
+        return { success: false, error: result.response || 'Approval rejected' };
+      }
     } catch (error) {
       console.error('Builder fee approval error:', error);
       return { success: false, error: error.message };
