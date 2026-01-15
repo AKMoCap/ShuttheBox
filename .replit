@@ -21,13 +21,13 @@ args = "Serve Website"
 name = "Serve Website"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npx serve -l 5000"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npx serve public -l 5000"
+waitForPort = 5000
 
 [[ports]]
 localPort = 5000
@@ -35,4 +35,4 @@ externalPort = 80
 
 [deployment]
 deploymentTarget = "static"
-publicDir = "."
+publicDir = "public"
