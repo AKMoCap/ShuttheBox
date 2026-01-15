@@ -74,15 +74,16 @@ h1 {
   cursor: pointer;
 }
 
-.odds-display-left {
+/* Odds display styling for left container */
+.left-container .odds-display {
   text-align: center;
 }
 
-.odds-display-left .odds-label {
+.left-container .odds-display .odds-label {
   font-size: 1.25rem;
 }
 
-.odds-display-left .odds-value {
+.left-container .odds-display .odds-value {
   font-size: 1.5rem;
 }
 
@@ -105,13 +106,6 @@ h1 {
   align-items: center;
   gap: 20px;
   /* space between elements */
-}
-
-/* Hide odds on right side on desktop (show on mobile) */
-@media (min-width: 1201px) {
-  #immediateOddsDisplay.odds-display-right {
-    display: none !important;
-  }
 }
 
 /* ───────── Mobile-only elements ───────── */

@@ -730,7 +730,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const soundToggle = document.getElementById("soundToggle");
 
   const oddsSpan = document.getElementById("immediateOdds");
-  const oddsSpanLeft = document.getElementById("immediateOddsLeft");
 
   /* one-time browser id for free play */
   let playerId = localStorage.getItem("playerId");
@@ -1026,7 +1025,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const oddsText = (odds * 100).toFixed(1) + "%";
     if (oddsSpan) oddsSpan.textContent = oddsText;
-    if (oddsSpanLeft) oddsSpanLeft.textContent = oddsText;
   }
 
   /* ───────── drawing ───────── */
