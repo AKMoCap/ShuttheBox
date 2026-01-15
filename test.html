@@ -77,11 +77,25 @@
         <div id="walletAddress" class="wallet-hint" style="display: none;"></div>
       </div>
       <button id="disconnectBtn" class="mode-btn disconnect-btn" style="display: none;">Disconnect</button>
+      <button id="soundToggle" class="mode-btn sound-btn">🔇 Sound</button>
     </div>
   </div>
 
-  <!-- GAME + SIDEBAR FLEX -->
+  <!-- GAME + SIDEBARS FLEX -->
   <div class="game-container">
+    <!-- LEFT COLUMN: remaining total, dice selectors, odds (desktop only) -->
+    <div class="left-container">
+      <div id="scoreBarDesktop" class="score-bar-desktop">Remaining Total: <span id="remainingDesktop">78</span></div>
+      <div id="controlsDesktop" class="controls-desktop">
+        <label><input type="radio" name="diceModeDesktop" value="1"> 1 Die</label>
+        <label><input type="radio" name="diceModeDesktop" value="2" checked> 2 Dice</label>
+      </div>
+      <div id="immediateOddsDisplayLeft" class="odds-display-left">
+        <div class="odds-label">Odds to Survive:</div>
+        <div class="odds-value"><span id="immediateOddsLeft">…</span></div>
+      </div>
+    </div>
+
     <!-- BOARD WRAP: canvas + dice result + roll button -->
     <div id="boardWrap">
       <canvas id="board" width="900" height="660"></canvas>
@@ -119,13 +133,8 @@
       </div>
     </div>
 
-    <!-- RIGHT COLUMN: odds, collateral selector, then stats -->
+    <!-- RIGHT COLUMN: collateral selector, controls -->
     <div class="right-container">
-      <div id="immediateOddsDisplay">
-        <div class="odds-label">Odds to Survive:</div>
-        <div class="odds-value"><span id="immediateOdds">…</span></div>
-      </div>
-
       <!-- Collateral selector - only shown in PerpPlay mode -->
       <div id="collateralSection" class="collateral-section" style="display: none;">
         <div class="collateral-label">Perp Collateral:</div>
@@ -139,6 +148,12 @@
         </div>
       </div>
 
+      <!-- Odds display for right side (mobile) -->
+      <div id="immediateOddsDisplay" class="odds-display-right">
+        <div class="odds-label">Odds to Survive:</div>
+        <div class="odds-value"><span id="immediateOdds">…</span></div>
+      </div>
+
       <!-- Desktop-only controls cheat-sheet -->
       <div id="controlsBox" class="controls-box">
         <strong>Keyboard Controls</strong><br>
@@ -150,14 +165,13 @@
     </div>
   </div>
 
-  <!-- bottom controls -->
-  <div id="scoreBar">Remaining total: <span id="remaining">78</span></div>
-  <div id="controls">
+  <!-- bottom controls (mobile only) -->
+  <div id="scoreBar" class="mobile-only">Remaining Total: <span id="remaining">78</span></div>
+  <div id="controls" class="mobile-only">
     <label><input type="radio" name="diceMode" value="1"> 1 Die</label>
     <label><input type="radio" name="diceMode" value="2" checked> 2 Dice</label>
   </div>
   <button id="restartBtn">Restart Game</button>
-  <button id="soundToggle">🔇 Sound</button>
 
   <!-- New instructions box -->
   <div id="instructions">
