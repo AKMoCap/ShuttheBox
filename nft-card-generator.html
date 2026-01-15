@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NFT Card Generator</title>
+  <style>
+    body {
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+    
+    .controls {
+      margin-bottom: 20px;
+    }
+    
+    .controls button {
+      background: #00d4ff;
+      color: #0a0a14;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 6px;
+      font-weight: bold;
+    }
+    
+    .controls button:hover {
+      background: #00b8e6;
+    }
+    
+    .preview-label {
+      color: #00d4ff;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    
+    #cardCanvas {
+      border: 1px solid #333;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <button onclick="downloadCard()">Download High-Res PNG (1200x1600)</button>
+  </div>
+  <div class="preview-label">Preview:</div>
+  <canvas id="cardCanvas" width="300" height="400"></canvas>
+
+  <script>
+    const SCALE = 4;
+    const WIDTH = 300;
+    const HEIGHT = 400;
+    
+    const hlLogo = new Image();
+    hlLogo.src = 'attached_assets/HL_symbol_white_1768442760084.png';
+    
+    hlLogo.onload = () => {
+      drawCard(document.getElementById('cardCanvas'), 1);
+    };
+    
+    function drawCard(canvas, scale) {
+      const ctx = canvas.getContext('2d');
+      const w = WIDTH * scale;
+      const h = HEIGHT * scale;
+      
+      canvas.width = w;
+      canvas.height = h;
+      
+      const s = scale;
+      
+      ctx.fillStyle = '#0a0a14';
+      ctx.fillRect(0, 0, w, h);
+      
+      ctx.strokeStyle = '#00d4ff';
+      ctx.lineWidth = 2 * s;
+      const borderRadius = 12 * s;
+      const borderPadding = 8 * s;
+      
+      ctx.beginPath();
+      ctx.roundRect(borderPadding, borderPadding, w - borderPadding * 2, h - borderPadding * 2, borderRadius);
+      ctx.stroke();
+      
+      ctx.fillStyle = '#00d4ff';
+      ctx.font = `bold ${14 * s}px Arial, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText('Certified', w / 2, 40 * s);
+      ctx.fillText('Box Shutter', w / 2, 58 * s);
+      
+      ctx.font = `bold ${72 * s}px Arial, sans-serif`;
+      ctx.fillText('A', w / 2 - 20 * s, h / 2 + 10 * s);
+      
+      ctx.font = `${36 * s}px Arial, sans-serif`;
+      ctx.fillText('♠', w / 2 + 38 * s, h / 2 - 5 * s);
+      
+      const logoSize = 50 * s;
+      const logoX = (w - logoSize) / 2;
+      const logoY = h - 70 * s;
+      ctx.drawImage(hlLogo, logoX, logoY, logoSize, logoSize);
+    }
+    
+    function downloadCard() {
+      const downloadCanvas = document.createElement('canvas');
+      drawCard(downloadCanvas, SCALE);
+      
+      const link = document.createElement('a');
+      link.download = 'certified-box-shutter-nft.png';
+      link.href = downloadCanvas.toDataURL('image/png');
+      link.click();
+    }
+  </script>
+</body>
+</html>
