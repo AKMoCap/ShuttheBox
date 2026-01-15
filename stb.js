@@ -726,7 +726,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const remainingDesktopEl = document.getElementById("remainingDesktop");
   const diceResEl = document.getElementById("diceResult");
   const rollBtn = document.getElementById("rollBtn");
-  const restartBtn = document.getElementById("restartBtn");
   const soundToggle = document.getElementById("soundToggle");
 
   const oddsSpan = document.getElementById("immediateOdds");
@@ -1201,7 +1200,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if ((e.ctrlKey || e.metaKey) && (e.key === "r" || e.key === "R")) {
       e.preventDefault();
-      restartBtn.click();
+      startGame();
       return;
     }
     if (e.key === "Enter" && !awaitingPick && !gameOver) {
@@ -1280,7 +1279,6 @@ document.addEventListener("DOMContentLoaded", () => {
         !soundEnabled;
     soundToggle.textContent = soundEnabled ? "🔊 Sound" : "🔇 Sound";
   });
-  restartBtn.addEventListener("click", startGame);
 
   // Sync mobile and desktop dice mode radio buttons
   function syncDiceMode(sourceName, targetName) {
