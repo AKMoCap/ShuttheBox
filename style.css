@@ -106,17 +106,17 @@ h1 {
 
 /* ───────── Mobile-only elements ───────── */
 .mobile-only {
-  display: none;
+  display: none !important;
 }
 
 @media (max-width: 1200px) {
   .mobile-only {
-    display: flex;
+    display: flex !important;
     justify-content: center;
   }
 
   #scoreBar.mobile-only {
-    display: block;
+    display: block !important;
     text-align: center;
   }
 }
