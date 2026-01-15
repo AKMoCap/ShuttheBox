@@ -25,16 +25,16 @@
 
   <!-- GAME + SIDEBARS FLEX -->
   <div class="game-container">
-    <!-- LEFT COLUMN: remaining total, dice selectors, odds (desktop only) -->
+    <!-- LEFT COLUMN: odds, remaining total, dice selectors (desktop only) -->
     <div class="left-container">
+      <div id="immediateOddsDisplay" class="odds-display">
+        <div class="odds-label">Odds to Survive:</div>
+        <div class="odds-value"><span id="immediateOdds">…</span></div>
+      </div>
       <div id="scoreBarDesktop" class="score-bar-desktop">Remaining Total: <span id="remainingDesktop">78</span></div>
       <div id="controlsDesktop" class="controls-desktop">
         <label><input type="radio" name="diceModeDesktop" value="1"> 1 Die</label>
         <label><input type="radio" name="diceModeDesktop" value="2" checked> 2 Dice</label>
-      </div>
-      <div id="immediateOddsDisplayLeft" class="odds-display-left">
-        <div class="odds-label">Odds to Survive:</div>
-        <div class="odds-value"><span id="immediateOddsLeft">…</span></div>
       </div>
     </div>
 
@@ -90,10 +90,10 @@
         </div>
       </div>
 
-      <!-- Odds display for right side (mobile) -->
-      <div id="immediateOddsDisplay" class="odds-display-right">
+      <!-- Odds display (mobile only - desktop version is in left-container) -->
+      <div id="immediateOddsDisplayMobile" class="odds-display mobile-only">
         <div class="odds-label">Odds to Survive:</div>
-        <div class="odds-value"><span id="immediateOdds">…</span></div>
+        <div class="odds-value"><span id="immediateOddsMobile">…</span></div>
       </div>
 
       <!-- Desktop-only controls cheat-sheet -->
