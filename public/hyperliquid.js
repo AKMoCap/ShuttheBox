@@ -293,6 +293,26 @@ window.HyperliquidManager = (() => {
       // Save credentials to localStorage for future reconnection
       saveWalletData();
 
+      // Log connection summary for debugging
+      console.log('=== CONNECTION COMPLETE ===');
+      console.log('Wallet address:', walletAddress);
+      console.log('Agent wallet address:', agentWallet.address);
+      console.log('Agent private key set:', !!agentPrivateKey);
+      console.log('isConnected:', isConnected);
+
+      // Check user's balance on Hyperliquid
+      try {
+        const balance = await getUserBalance();
+        console.log('User balance on Hyperliquid:', balance);
+        if (!balance || balance.available < 1) {
+          console.warn('⚠️ WARNING: This wallet has little or no USDC on Hyperliquid!');
+          console.warn('You need to deposit USDC on Hyperliquid to open positions.');
+          console.warn('Visit https://app.hyperliquid.xyz to deposit funds.');
+        }
+      } catch (e) {
+        console.error('Could not check balance:', e);
+      }
+
       return {
         success: true,
         address: walletAddress
@@ -638,6 +658,7 @@ window.HyperliquidManager = (() => {
     };
 
     console.log('Placing order:', action);
+    console.log('Order for wallet:', walletAddress, 'using agent:', agentWallet?.address);
     const signature = await signL1Action(action, nonce);
 
     const response = await fetch('https://api.hyperliquid.xyz/exchange', {
@@ -652,11 +673,34 @@ window.HyperliquidManager = (() => {
     });
 
     const responseText = await response.text();
-    console.log('Order response:', responseText);
+    console.log('Order response (raw):', responseText);
 
     try {
-      return JSON.parse(responseText);
+      const result = JSON.parse(responseText);
+
+      // Check for detailed order status in response
+      if (result.status === 'ok' && result.response?.data?.statuses) {
+        const statuses = result.response.data.statuses;
+        console.log('Order statuses:', JSON.stringify(statuses));
+
+        // Check if order was actually filled
+        for (const status of statuses) {
+          if (status.error) {
+            console.error('Order error in status:', status.error);
+            return { status: 'err', response: status.error };
+          }
+          if (status.filled) {
+            console.log('Order filled:', status.filled);
+          }
+          if (status.resting) {
+            console.log('Order resting (not immediately filled):', status.resting);
+          }
+        }
+      }
+
+      return result;
     } catch (e) {
+      console.error('Failed to parse order response:', e);
       return { status: 'error', response: responseText };
     }
   };
