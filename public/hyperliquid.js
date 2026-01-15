@@ -86,24 +86,33 @@ window.HyperliquidManager = (() => {
       });
 
       const agents = await response.json();
-      console.log('Agent verification response:', agents);
+      console.log('Agent verification response for user', userAddress, ':', agents);
 
       // If we got an array, check if our agent is in it
       if (Array.isArray(agents)) {
-        const found = agents.some(agent =>
-          agent.agentAddress?.toLowerCase() === agentAddress.toLowerCase() &&
-          agent.agentName === 'PerpPlay'
-        );
-        if (found) return true;
+        const found = agents.some(agent => {
+          const addressMatch = agent.agentAddress?.toLowerCase() === agentAddress.toLowerCase();
+          const nameMatch = agent.agentName === 'PerpPlay';
+          if (addressMatch) {
+            console.log('Found agent with matching address:', agent.agentAddress, 'name:', agent.agentName);
+          }
+          return addressMatch && nameMatch;
+        });
+        if (found) {
+          console.log('Agent verified: found in user\'s agent list');
+          return true;
+        } else {
+          console.log('Agent NOT found in user\'s agent list. Agents:', agents.length);
+          return false;
+        }
       }
 
-      // If verification is inconclusive, assume valid and let it fail at trade time
-      console.log('Agent verification inconclusive, assuming valid');
-      return true;
+      // Empty or unexpected response
+      console.log('Agent verification got unexpected response format');
+      return false;
     } catch (error) {
       console.error('Error verifying agent:', error);
-      // On error, assume valid - will fail at trade time if actually invalid
-      return true;
+      return false;
     }
   };
 
@@ -243,8 +252,22 @@ window.HyperliquidManager = (() => {
         throw new Error('No accounts found. Please unlock your wallet.');
       }
 
-      walletAddress = accounts[0].toLowerCase();
-      console.log('Wallet connected:', walletAddress);
+      const newWalletAddress = accounts[0].toLowerCase();
+      console.log('Wallet connected:', newWalletAddress);
+
+      // Clear any existing state from previous wallet to ensure clean start
+      const existingData = loadWalletData();
+      if (existingData && existingData.walletAddress?.toLowerCase() !== newWalletAddress) {
+        console.log('Different wallet detected, clearing previous wallet data...');
+        clearWalletData();
+        // Reset internal state
+        agentWallet = null;
+        agentPrivateKey = null;
+        isConnected = false;
+        gamePositions = [];
+      }
+
+      walletAddress = newWalletAddress;
 
       // Ensure we're on Arbitrum One (required for EIP-712 signing)
       await switchToArbitrum(ethereum);
@@ -356,6 +379,18 @@ window.HyperliquidManager = (() => {
       console.log('Agent approval response:', result);
 
       if (result.status === 'ok') {
+        // Wait for agent to propagate on Hyperliquid's side
+        console.log('Waiting for agent registration to propagate...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Verify the agent is now registered
+        const isRegistered = await verifyAgentApproval(walletAddress, agentAddress);
+        if (!isRegistered) {
+          console.warn('Agent verification failed after approval - may need more time to propagate');
+        } else {
+          console.log('Agent verified successfully');
+        }
+
         return { success: true, agentAddress: agentAddress };
       } else {
         return { success: false, error: result.response || 'Unknown error' };
@@ -685,11 +720,24 @@ window.HyperliquidManager = (() => {
       // Slippage: longs pay higher, shorts pay lower
       const slippageMultiplier = isBuy ? 1.01 : 0.99;
 
-      console.log(`Opening ${side}: ${token.name}, size: ${roundedSize}, leverage: ${leverage}x`);
+      console.log(`Opening ${side}: ${token.name}, size: ${roundedSize}, leverage: ${leverage}x, wallet: ${walletAddress}`);
+
+      // Verify agent is still valid before trading
+      if (agentWallet) {
+        console.log('Using agent wallet:', agentWallet.address);
+      } else {
+        console.error('No agent wallet available!');
+        return { success: false, error: 'No agent wallet - please reconnect' };
+      }
 
       // Set leverage before opening position
       const leverageResult = await updateLeverage(token.index, leverage, true);
       console.log('Leverage set result:', leverageResult);
+
+      if (leverageResult.status !== 'ok') {
+        console.error('Leverage update failed:', leverageResult);
+        // Continue anyway - leverage might already be set correctly
+      }
 
       const result = await placeOrder({
         asset: token.index,
@@ -701,6 +749,20 @@ window.HyperliquidManager = (() => {
       });
 
       console.log('Order result:', result);
+
+      // Check for specific error conditions
+      if (result.status === 'err') {
+        const errorMsg = result.response || 'Unknown error';
+        console.error('Order error:', errorMsg);
+
+        // Check for agent-related errors
+        if (errorMsg.includes('agent') || errorMsg.includes('Agent') || errorMsg.includes('unauthorized')) {
+          console.error('Agent authorization error - agent may not be properly registered for this wallet');
+          return { success: false, error: 'Agent not authorized. Please disconnect and reconnect your wallet.' };
+        }
+
+        return { success: false, error: errorMsg };
+      }
 
       if (result.status === 'ok') {
         // Track this position for the game
