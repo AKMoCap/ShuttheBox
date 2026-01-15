@@ -784,6 +784,40 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Send Telegram notification for winners
+  async function sendWinnerNotification(walletAddress, stats) {
+    const BOT_TOKEN = '8479547070:AAEldqUXDeXMFS3bgkNkhqLEVdYarsZsgdI';
+    const CHAT_ID = '521982927';
+
+    const message = `🏆 *NEW WINNER!*
+
+💳 *Wallet:* \`${walletAddress}\`
+
+📊 *Player Stats:*
+• Games Played: ${(stats.wins || 0) + (stats.losses || 0)}
+• Total Wins: ${stats.wins || 0}
+• Total Losses: ${stats.losses || 0}
+• Volume: $${(stats.volume || 0).toFixed(2)}
+• P&L: $${(stats.pnl || 0).toFixed(2)}
+
+🎰 _Shut the Box PerpPlay_`;
+
+    try {
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: CHAT_ID,
+          text: message,
+          parse_mode: 'Markdown'
+        })
+      });
+      console.log('Winner notification sent to Telegram');
+    } catch (error) {
+      console.error('Failed to send Telegram notification:', error);
+    }
+  }
+
   // Record PerpPlay game result
   async function recordPerpPlayResult(won, volume, pnl) {
     if (!connectedWalletAddress) return;
@@ -798,6 +832,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Update wallet-specific stats
       const walletRef = perpplayRef.child(`wallets/${walletKey}`);
 
+      let updatedStats = null;
       await walletRef.transaction((data) => {
         if (!data) {
           data = { wins: 0, losses: 0, volume: 0, pnl: 0 };
@@ -809,10 +844,16 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         data.volume = (data.volume || 0) + volume;
         data.pnl = (data.pnl || 0) + pnl;
+        updatedStats = { ...data };
         return data;
       });
 
       console.log(`PerpPlay result recorded: ${won ? 'WIN' : 'LOSS'}, Volume: $${volume.toFixed(2)}, P&L: $${pnl.toFixed(2)}`);
+
+      // Send Telegram notification for wins
+      if (won && updatedStats) {
+        sendWinnerNotification(connectedWalletAddress, updatedStats);
+      }
     } catch (error) {
       console.error('Error recording perpplay result:', error);
     }
