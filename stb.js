@@ -1347,10 +1347,13 @@ document.addEventListener("DOMContentLoaded", () => {
       inset: 0,
       background: "rgba(0,0,0,.65)",
       display: "flex",
+      flexDirection: "column",
       justifyContent: "center",
       alignItems: "center",
       zIndex: 1001,
       cursor: "pointer",
+      gap: "20px",
+      padding: "20px",
     });
 
     const img = new Image();
@@ -1358,6 +1361,30 @@ document.addEventListener("DOMContentLoaded", () => {
     img.style.maxWidth = "90%";
     img.style.boxShadow = "0 0 18px #000, 0 0 8px #3AB4EF";
     overlay.appendChild(img);
+
+    // NFT reward message
+    const nftMessage = document.createElement("div");
+    Object.assign(nftMessage.style, {
+      color: "#3AB4EF",
+      fontSize: "16px",
+      fontFamily: "Franklin Gothic Book, sans-serif",
+      textAlign: "center",
+      maxWidth: "400px",
+      lineHeight: "1.5",
+      textShadow: "0 0 10px rgba(0,0,0,0.8)",
+    });
+    nftMessage.textContent = "All winners will receive an NFT to their winning wallet on the HyperEVM - look out for future rewards!";
+    overlay.appendChild(nftMessage);
+
+    // Click to dismiss hint
+    const dismissHint = document.createElement("div");
+    Object.assign(dismissHint.style, {
+      color: "#9ca3af",
+      fontSize: "12px",
+      fontFamily: "Franklin Gothic Book, sans-serif",
+    });
+    dismissHint.textContent = "(click anywhere to dismiss)";
+    overlay.appendChild(dismissHint);
 
     /* click anywhere to dismiss */
     overlay.addEventListener("click", () => overlay.remove());
