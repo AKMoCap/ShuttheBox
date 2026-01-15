@@ -207,8 +207,8 @@ h1 {
   font-weight: 600;
 }
 
+/* #controls uses .mobile-only class for visibility (hidden on desktop, flex on mobile) */
 #controls {
-  display: flex;
   gap: 18px;
   justify-content: center;
   font-family: "Franklin Gothic Book", sans-serif;
