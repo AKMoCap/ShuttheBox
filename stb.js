@@ -1390,14 +1390,35 @@ document.addEventListener("DOMContentLoaded", () => {
     if (playMode === 'perpplay' && walletConnected && window.HyperliquidManager) {
       const positions = await window.HyperliquidManager.getGamePositionsWithPnL();
       if (positions.length > 0) {
-        // Set context for modal button handlers
-        endGameModalContext = { recordStats: true, won: won };
+        if (won) {
+          // WIN: Auto-close all positions without showing modal
+          let totalPnl = 0;
+          positions.forEach(p => totalPnl += (p.pnlUsd || 0));
 
-        // Show end game modal with position selection
-        const modalTitle = won ? 'You Won!' : 'Game Over!';
-        await showEndGameModal(modalTitle, won);
+          // Close all positions silently in background
+          try {
+            await window.HyperliquidManager.closeAllPositions();
+            console.log('Win: All positions closed automatically');
+          } catch (error) {
+            console.error('Error auto-closing positions on win:', error);
+          }
 
-        return; // Don't auto-restart, handled by modal buttons
+          // Record PerpPlay stats
+          await recordPerpPlayResult(won, currentGameVolume, totalPnl);
+
+          // Clear game positions and reset tracking
+          window.HyperliquidManager.clearGamePositions();
+          currentGameVolume = 0;
+          currentGamePnl = 0;
+
+          // Update position table to show empty
+          updatePositionTable();
+        } else {
+          // LOSS: Show end game modal with position selection
+          endGameModalContext = { recordStats: true, won: won };
+          await showEndGameModal('Game Over!', won);
+          return; // Don't auto-restart, handled by modal buttons
+        }
       } else {
         // PerpPlay mode but no positions - still record stats (with 0 volume/pnl)
         await recordPerpPlayResult(won, currentGameVolume, 0);
@@ -1534,4 +1555,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* ───────── initialise ───────── */
   startGame();
+
+  // Expose test functions for test page
+  window.testTriggerWin = () => stopGame(true);
+  window.testTriggerLoss = () => stopGame(false);
 });
