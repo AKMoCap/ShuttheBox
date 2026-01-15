@@ -97,21 +97,19 @@
       ctx.fillStyle = '#00d4ff';
       ctx.shadowColor = '#00d4ff';
       ctx.shadowBlur = 10 * s;
-      ctx.font = `400 ${24 * s}px 'Libre Franklin', sans-serif`;
+      ctx.font = `400 ${32 * s}px 'Libre Franklin', sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText('Certified', w / 2, 52 * s);
-      ctx.fillText('Box Shutter', w / 2, 78 * s);
+      ctx.fillText('Certified', w / 2, 55 * s);
+      ctx.fillText('Box Shutter', w / 2, 88 * s);
       
-      ctx.font = `400 ${90 * s}px 'Libre Franklin', sans-serif`;
       ctx.shadowBlur = 15 * s;
-      const aWidth = ctx.measureText('A').width;
-      const totalWidth = aWidth + 70 * s;
-      const startX = (w - totalWidth) / 2;
-      
-      ctx.fillText('A', startX + aWidth / 2, h / 2 + 25 * s);
-      
       ctx.font = `400 ${90 * s}px 'Libre Franklin', sans-serif`;
-      ctx.fillText('♠', startX + aWidth + 35 * s, h / 2 + 25 * s);
+      const aWidth = ctx.measureText('A').width;
+      
+      ctx.fillText('A', w / 2 - 25 * s, h / 2 + 25 * s);
+      
+      ctx.font = `400 ${110 * s}px 'Libre Franklin', sans-serif`;
+      ctx.fillText('♠', w / 2 + 45 * s, h / 2 + 25 * s);
       
       ctx.shadowColor = '#00d4ff';
       ctx.shadowBlur = 12 * s;
