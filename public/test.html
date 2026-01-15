@@ -187,6 +187,25 @@
   <!-- Stats button -->
   <button id="statsBtn" class="stats-btn">Stats</button>
 
+  <!-- Leaderboard -->
+  <div id="leaderboardSection" class="leaderboard-section">
+    <h3>Leaderboard (Top 100)</h3>
+    <div class="leaderboard-table-container">
+      <table class="leaderboard-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Wallet</th>
+            <th>Points</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboardBody">
+          <tr><td colspan="3">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Stats Modal -->
   <div id="statsModal" class="stats-modal" style="display: none;">
     <div class="stats-modal-content">
@@ -250,6 +269,10 @@
           <tr class="your-stats-row">
             <td>Your P&L</td>
             <td><span id="ppYourPnl">$0.00</span></td>
+          </tr>
+          <tr class="your-stats-row points-row">
+            <td>Your Points</td>
+            <td><span id="ppYourPoints">0</span></td>
           </tr>
         </table>
       </div>

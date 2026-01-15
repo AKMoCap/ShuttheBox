@@ -6,6 +6,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // New Firebase structure for stats
   const freeplayRef = db.ref("freeplay");
   const perpplayRef = db.ref("perpplay");
+  const pointsRef = db.ref("points");
+
+  // Test wallet excluded from points
+  const EXCLUDED_WALLET = "0x5081931dEEc86B192628FF1162856973Fb9e8E01".toLowerCase();
+
+  // Points values
+  const POINTS_START_GAME = 10;
+  const POINTS_FINISH_GAME = 25;
+  const POINTS_WIN_GAME = 1000;
 
   // Game session tracking for PerpPlay
   let currentGameVolume = 0;
@@ -781,6 +790,13 @@ document.addEventListener("DOMContentLoaded", () => {
           ppYourPnl.textContent = `${pnl >= 0 ? '+' : ''}$${pnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
           ppYourPnl.className = pnl >= 0 ? 'profit' : 'loss';
         }
+
+        // Load wallet points
+        const ppYourPoints = document.getElementById('ppYourPoints');
+        if (ppYourPoints) {
+          const points = await loadWalletPoints();
+          ppYourPoints.textContent = points.toLocaleString();
+        }
       } else {
         // Not connected - show zeros
         if (ppYourWins) ppYourWins.textContent = '0';
@@ -790,6 +806,8 @@ document.addEventListener("DOMContentLoaded", () => {
           ppYourPnl.textContent = '$0.00';
           ppYourPnl.className = '';
         }
+        const ppYourPoints = document.getElementById('ppYourPoints');
+        if (ppYourPoints) ppYourPoints.textContent = '0';
       }
     } catch (error) {
       console.error('Error loading perpplay stats:', error);
@@ -889,8 +907,104 @@ document.addEventListener("DOMContentLoaded", () => {
       if (won && updatedStats) {
         sendWinnerNotification(connectedWalletAddress, updatedStats);
       }
+
+      // Award points for finishing game (25 pts) + bonus for winning (1000 pts)
+      await awardPoints(POINTS_FINISH_GAME, 'finishing game');
+      if (won) {
+        await awardPoints(POINTS_WIN_GAME, 'winning game');
+      }
+
+      // Refresh leaderboard after points update
+      loadLeaderboard();
     } catch (error) {
       console.error('Error recording perpplay result:', error);
+    }
+  }
+
+  // Award points to a wallet (PerpPlay only)
+  async function awardPoints(points, reason) {
+    if (!connectedWalletAddress) return;
+
+    const walletKey = connectedWalletAddress.toLowerCase();
+
+    // Exclude test wallet from points
+    if (walletKey === EXCLUDED_WALLET) {
+      console.log(`Points skipped for test wallet: ${points} (${reason})`);
+      return;
+    }
+
+    try {
+      await pointsRef.child(walletKey).transaction((data) => {
+        if (!data) {
+          data = { points: 0, address: connectedWalletAddress };
+        }
+        data.points = (data.points || 0) + points;
+        data.address = connectedWalletAddress; // Store original case address for display
+        return data;
+      });
+      console.log(`Points awarded: +${points} (${reason})`);
+    } catch (error) {
+      console.error('Error awarding points:', error);
+    }
+  }
+
+  // Load leaderboard data (top 100)
+  async function loadLeaderboard() {
+    const leaderboardBody = document.getElementById('leaderboardBody');
+    if (!leaderboardBody) return;
+
+    try {
+      const snapshot = await pointsRef.orderByChild('points').limitToLast(100).once('value');
+      const entries = [];
+
+      snapshot.forEach((child) => {
+        const data = child.val();
+        entries.push({
+          address: data.address || child.key,
+          points: data.points || 0
+        });
+      });
+
+      // Sort descending by points
+      entries.sort((a, b) => b.points - a.points);
+
+      // Build table rows
+      leaderboardBody.innerHTML = entries.map((entry, index) => {
+        const rank = index + 1;
+        const truncatedAddr = `${entry.address.slice(0, 6)}...${entry.address.slice(-4)}`;
+        const isCurrentWallet = connectedWalletAddress &&
+          entry.address.toLowerCase() === connectedWalletAddress.toLowerCase();
+        const rowClass = isCurrentWallet ? 'current-wallet' : '';
+        const rankDisplay = rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : rank;
+
+        return `<tr class="${rowClass}">
+          <td>${rankDisplay}</td>
+          <td>${truncatedAddr}</td>
+          <td>${entry.points.toLocaleString()}</td>
+        </tr>`;
+      }).join('');
+
+      if (entries.length === 0) {
+        leaderboardBody.innerHTML = '<tr><td colspan="3">No players yet</td></tr>';
+      }
+    } catch (error) {
+      console.error('Error loading leaderboard:', error);
+      leaderboardBody.innerHTML = '<tr><td colspan="3">Error loading leaderboard</td></tr>';
+    }
+  }
+
+  // Load wallet points for stats display
+  async function loadWalletPoints() {
+    if (!connectedWalletAddress) return 0;
+
+    const walletKey = connectedWalletAddress.toLowerCase();
+    try {
+      const snapshot = await pointsRef.child(walletKey).once('value');
+      const data = snapshot.val();
+      return data?.points || 0;
+    } catch (error) {
+      console.error('Error loading wallet points:', error);
+      return 0;
     }
   }
 
@@ -1584,6 +1698,11 @@ document.addEventListener("DOMContentLoaded", () => {
       skipPositionClear = false; // Reset flag for next game
       updatePositionTable();
     }
+
+    // Award points for starting a game in PerpPlay mode
+    if (playMode === 'perpplay' && walletConnected) {
+      awardPoints(POINTS_START_GAME, 'starting game');
+    }
   }
 
   /* ───────── mobile ↔ desktop: move elements for optimal layout ───────── */
@@ -1666,6 +1785,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* ───────── initialise ───────── */
   startGame();
+
+  // Load leaderboard on page load
+  loadLeaderboard();
 
   // Expose test functions for test page
   window.testTriggerWin = () => stopGame(true);

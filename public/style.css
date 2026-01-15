@@ -1204,6 +1204,87 @@ button:not(#rollBtn):hover {
   color: #ef4444 !important;
 }
 
+/* Points row highlight */
+.stats-table .points-row td {
+  background: rgba(255, 215, 0, 0.15);
+  color: #ffd700 !important;
+}
+
+/* ───────── Leaderboard ───────── */
+.leaderboard-section {
+  margin-top: 24px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(11, 22, 36, 0.9) 0%, rgba(26, 42, 61, 0.9) 100%);
+  border: 2px solid var(--accent);
+  border-radius: 0.75rem;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.leaderboard-section h3 {
+  color: var(--accent);
+  font-size: 1.2rem;
+  margin-bottom: 12px;
+  text-align: center;
+  font-family: "Franklin Gothic Book", sans-serif;
+}
+
+.leaderboard-table-container {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--accent);
+  font-family: "Franklin Gothic Book", sans-serif;
+}
+
+.leaderboard-table thead th {
+  position: sticky;
+  top: 0;
+  background: #0b1624;
+  padding: 8px 10px;
+  border-bottom: 2px solid var(--accent);
+  text-align: left;
+  font-weight: 600;
+}
+
+.leaderboard-table thead th:last-child {
+  text-align: right;
+}
+
+.leaderboard-table tbody td {
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(58, 180, 239, 0.3);
+}
+
+.leaderboard-table tbody td:first-child {
+  text-align: center;
+  width: 50px;
+}
+
+.leaderboard-table tbody td:last-child {
+  text-align: right;
+  font-weight: 600;
+}
+
+.leaderboard-table tbody tr:hover {
+  background: rgba(58, 180, 239, 0.1);
+}
+
+.leaderboard-table tbody tr.current-wallet {
+  background: rgba(255, 215, 0, 0.2);
+}
+
+.leaderboard-table tbody tr.current-wallet td {
+  color: #ffd700;
+  font-weight: 600;
+}
+
 /* ───────── Mobile adjustments for new elements ───────── */
 @media (max-width: 800px) {
   .header-container {
