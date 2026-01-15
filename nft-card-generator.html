@@ -96,23 +96,31 @@
       
       ctx.fillStyle = '#00d4ff';
       ctx.shadowColor = '#00d4ff';
-      ctx.shadowBlur = 8 * s;
-      ctx.font = `400 ${18 * s}px 'Libre Franklin', sans-serif`;
+      ctx.shadowBlur = 10 * s;
+      ctx.font = `400 ${24 * s}px 'Libre Franklin', sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText('Certified', w / 2, 48 * s);
-      ctx.fillText('Box Shutter', w / 2, 70 * s);
+      ctx.fillText('Certified', w / 2, 52 * s);
+      ctx.fillText('Box Shutter', w / 2, 78 * s);
       
-      ctx.shadowBlur = 0;
+      ctx.font = `400 ${90 * s}px 'Libre Franklin', sans-serif`;
+      ctx.shadowBlur = 15 * s;
+      const aWidth = ctx.measureText('A').width;
+      const totalWidth = aWidth + 70 * s;
+      const startX = (w - totalWidth) / 2;
       
-      ctx.font = `400 ${80 * s}px 'Libre Franklin', sans-serif`;
-      const aceText = 'A♠';
-      ctx.fillText(aceText, w / 2, h / 2 + 20 * s);
+      ctx.fillText('A', startX + aWidth / 2, h / 2 + 25 * s);
       
-      ctx.shadowBlur = 0;
+      ctx.font = `400 ${90 * s}px 'Libre Franklin', sans-serif`;
+      ctx.fillText('♠', startX + aWidth + 35 * s, h / 2 + 25 * s);
+      
+      ctx.shadowColor = '#00d4ff';
+      ctx.shadowBlur = 12 * s;
       const logoSize = 70 * s;
       const logoX = (w - logoSize) / 2;
-      const logoY = h - 110 * s;
+      const logoY = h - 115 * s;
       ctx.drawImage(hlLogo, logoX, logoY, logoSize, logoSize);
+      
+      ctx.shadowBlur = 0;
     }
     
     function downloadCard() {
