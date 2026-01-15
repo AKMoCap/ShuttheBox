@@ -21,6 +21,13 @@ document.addEventListener("DOMContentLoaded", () => {
   let tradeQueue = [];
   let isProcessingQueue = false;
 
+  // Wait for trade queue to finish processing
+  async function waitForTradeQueue() {
+    while (tradeQueue.length > 0 || isProcessingQueue) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
   // PerpPlay UI elements
   const freePlayBtn = document.getElementById('freePlayBtn');
   const perpPlayBtn = document.getElementById('perpPlayBtn');
@@ -1476,6 +1483,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Close all PerpPlay positions if in that mode
     if (playMode === 'perpplay' && walletConnected && window.HyperliquidManager) {
+      // Wait for any pending trades in queue to complete
+      await waitForTradeQueue();
+
       const positions = await window.HyperliquidManager.getGamePositionsWithPnL();
       if (positions.length > 0) {
         if (won) {
