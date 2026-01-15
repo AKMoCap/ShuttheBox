@@ -1593,7 +1593,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const sidebar = document.querySelector(".right-container");
     const boardWrap = document.getElementById("boardWrap");
     const collateralSection = document.getElementById("collateralSection");
-    const oddsDisplay = document.getElementById("immediateOddsDisplay");
     const controls = document.getElementById("controls");
     const controlsBox = document.getElementById("controlsBox");
 
@@ -1604,20 +1603,11 @@ document.addEventListener("DOMContentLoaded", () => {
       if (collateralSection && boardWrap && boardWrap.nextSibling !== collateralSection) {
         boardWrap.parentNode.insertBefore(collateralSection, boardWrap.nextSibling);
       }
-
-      // Move odds display after the dice controls
-      if (oddsDisplay && controls && controls.nextSibling !== oddsDisplay) {
-        controls.parentNode.insertBefore(oddsDisplay, controls.nextSibling);
-      }
     } else {
-      /* ---- desktop: snap everything back into the sidebar ---- */
+      /* ---- desktop: snap collateral back into the sidebar ---- */
       if (sidebar) {
-        // Restore order: odds, collateral, controlsBox
-        if (oddsDisplay && !sidebar.contains(oddsDisplay)) {
-          sidebar.insertBefore(oddsDisplay, sidebar.firstChild);
-        }
         if (collateralSection && !sidebar.contains(collateralSection)) {
-          sidebar.insertBefore(collateralSection, oddsDisplay ? oddsDisplay.nextSibling : sidebar.firstChild);
+          sidebar.insertBefore(collateralSection, sidebar.firstChild);
         }
         if (controlsBox && !sidebar.contains(controlsBox)) {
           sidebar.appendChild(controlsBox);
