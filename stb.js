@@ -14,9 +14,12 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ───────── PerpPlay Mode State ───────── */
   let playMode = 'free'; // 'free' or 'perpplay'
   let walletConnected = false;
-  let pendingTrade = false; // prevent multiple trades at once
   let selectedCollateral = 10; // default $10
   let pnlUpdateInterval = null; // interval for live P&L updates
+
+  // Trade queue system - ensures all trades execute even during fast play
+  let tradeQueue = [];
+  let isProcessingQueue = false;
 
   // PerpPlay UI elements
   const freePlayBtn = document.getElementById('freePlayBtn');
@@ -482,9 +485,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // If positions exist, modal is now showing and user will choose
   }
 
-  // Execute PerpPlay trade
-  async function executePerpPlayTrade() {
-    if (!walletConnected || playMode !== 'perpplay' || pendingTrade) {
+  // Queue a trade for execution (called when card is flipped)
+  function executePerpPlayTrade() {
+    if (!walletConnected || playMode !== 'perpplay') {
       return;
     }
 
@@ -493,15 +496,42 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    pendingTrade = true;
+    // Add trade to queue with current collateral amount
+    const tradeCollateral = selectedCollateral;
+    tradeQueue.push(tradeCollateral);
+    console.log(`Trade queued: $${tradeCollateral} (Queue size: ${tradeQueue.length})`);
 
+    // Start processing queue if not already processing
+    if (!isProcessingQueue) {
+      processTradeQueue();
+    }
+  }
+
+  // Process trades from queue one at a time
+  async function processTradeQueue() {
+    if (isProcessingQueue || tradeQueue.length === 0) {
+      return;
+    }
+
+    isProcessingQueue = true;
+
+    while (tradeQueue.length > 0) {
+      const collateral = tradeQueue.shift();
+      console.log(`Processing trade: $${collateral} (${tradeQueue.length} remaining in queue)`);
+      await executeSingleTrade(collateral);
+    }
+
+    isProcessingQueue = false;
+  }
+
+  // Execute a single trade
+  async function executeSingleTrade(collateral) {
     try {
       // Check if user has enough balance first
       const balance = await window.HyperliquidManager.getUserBalance();
-      if (!balance || balance.available < selectedCollateral) {
-        console.log(`Insufficient balance: $${balance?.available || 0} < $${selectedCollateral}`);
+      if (!balance || balance.available < collateral) {
+        console.log(`Insufficient balance: $${balance?.available || 0} < $${collateral}`);
         showErrorToast('Not enough collateral to open a new position!');
-        pendingTrade = false;
         return;
       }
 
@@ -509,7 +539,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const token = await window.HyperliquidManager.getRandomTopToken();
       if (!token) {
         console.error('No token available');
-        pendingTrade = false;
         return;
       }
 
@@ -518,18 +547,18 @@ document.addEventListener("DOMContentLoaded", () => {
       const leverage = Math.min(token.maxLeverage || 20, 20);
 
       // Show toast with token name
-      showTradeToast(token.name, leverage, side, selectedCollateral);
+      showTradeToast(token.name, leverage, side, collateral);
 
       // Open the position
-      const result = await window.HyperliquidManager.openPosition(token, selectedCollateral, side);
+      const result = await window.HyperliquidManager.openPosition(token, collateral, side);
 
       // Hide toast after position opens (success or fail)
       hideTradeToast();
 
       if (result.success) {
-        console.log(`Position opened: ${token.name} ${side} with $${selectedCollateral}`);
+        console.log(`Position opened: ${token.name} ${side} with $${collateral}`);
         // Track volume for stats
-        trackPositionOpened(selectedCollateral);
+        trackPositionOpened(collateral);
         // Update position table and balance immediately
         await updatePositionTable();
         await updateUserBalance();
@@ -541,8 +570,6 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error('Trade execution error:', error);
       hideTradeToast();
     }
-
-    pendingTrade = false;
   }
 
   // Event listeners for PerpPlay mode
