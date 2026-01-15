@@ -761,23 +761,15 @@ window.HyperliquidManager = (() => {
 
       console.log('Close result:', result);
 
-      // Calculate PnL including trading fees
+      // Calculate PnL (matches Hyperliquid - fees are implicit in fill price)
       const priceDiff = currentPrice - position.entryPrice;
-      const rawPnl = position.side === 'LONG'
+      const pnlUsd = position.side === 'LONG'
         ? priceDiff * position.size
         : -priceDiff * position.size;
 
-      // Deduct trading fees (entry + exit)
-      const entryNotional = Math.abs(position.size) * position.entryPrice;
-      const exitNotional = Math.abs(position.size) * currentPrice;
-      const entryFee = calculateTradeFee(entryNotional);
-      const exitFee = calculateTradeFee(exitNotional);
-      const totalFees = entryFee + exitFee;
-
-      const pnlUsd = rawPnl - totalFees;
       const pnlPercent = (pnlUsd / position.collateral) * 100;
 
-      console.log(`P&L breakdown: Raw ${rawPnl.toFixed(2)}, Fees ${totalFees.toFixed(2)}, Net ${pnlUsd.toFixed(2)}`);
+      console.log(`Position closed: P&L $${pnlUsd.toFixed(2)} (${pnlPercent.toFixed(2)}%)`);
 
       // Remove from game positions
       gamePositions = gamePositions.filter(p => p.id !== position.id);
@@ -946,14 +938,9 @@ window.HyperliquidManager = (() => {
           ? priceDiff * pos.size
           : -priceDiff * pos.size;
 
-        // Estimate fees (entry already paid + estimated exit)
-        const entryNotional = Math.abs(pos.size) * pos.entryPrice;
-        const exitNotional = Math.abs(pos.size) * currentPrice;
-        const entryFee = calculateTradeFee(entryNotional);
-        const exitFee = calculateTradeFee(exitNotional);
-        const totalFees = entryFee + exitFee;
-
-        const pnlUsd = rawPnl - totalFees;
+        // Don't deduct fees from unrealized P&L - matches Hyperliquid display
+        // Fees are already reflected in the fill price difference
+        const pnlUsd = rawPnl;
         const pnlPercent = (pnlUsd / pos.collateral) * 100;
 
         return {
