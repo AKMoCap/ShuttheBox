@@ -56,7 +56,8 @@ h1 {
 }
 
 .score-bar-desktop {
-  font-size: 1.25rem;
+  font-family: "Franklin Gothic Book", sans-serif;
+  font-size: 1.1rem;
   font-weight: 600;
   color: var(--accent);
   text-align: center;
@@ -66,6 +67,7 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  font-family: "Franklin Gothic Book", sans-serif;
   font-size: 1.1rem;
   color: var(--accent);
 }
@@ -77,14 +79,8 @@ h1 {
 /* Odds display styling for left container */
 .left-container .odds-display {
   text-align: center;
-}
-
-.left-container .odds-display .odds-label {
-  font-size: 1.25rem;
-}
-
-.left-container .odds-display .odds-value {
-  font-size: 1.5rem;
+  font-family: "Franklin Gothic Book", sans-serif;
+  font-size: 1.1rem;
 }
 
 /* Hide left container on mobile */
@@ -180,13 +176,15 @@ h1 {
 }
 
 .odds-label {
-  font-size: 1.5rem;
+  font-family: "Franklin Gothic Book", sans-serif;
+  font-size: 1.1rem;
   font-weight: 600;
   color: var(--accent);
 }
 
 .odds-value {
-  font-size: 1.5rem;
+  font-family: "Franklin Gothic Book", sans-serif;
+  font-size: 1.1rem;
   color: var(--accent);
 }
 
@@ -204,7 +202,8 @@ h1 {
 /* ───────── Bottom Controls ───────── */
 #scoreBar {
   margin: 20px 0 4px;
-  font-size: 1.25rem;
+  font-family: "Franklin Gothic Book", sans-serif;
+  font-size: 1.1rem;
   font-weight: 600;
 }
 
@@ -212,8 +211,9 @@ h1 {
   display: flex;
   gap: 18px;
   justify-content: center;
+  font-family: "Franklin Gothic Book", sans-serif;
+  font-size: 1.1rem;
   margin-bottom: 8px;
-  font-size: 1.25rem;
 }
 
 button:not(#rollBtn) {
@@ -240,7 +240,7 @@ button:not(#rollBtn):hover {
   border-radius: 6px;
   color: var(--text);
   font-family: "Franklin Gothic Book", sans-serif;
-  font-size: 1rem;
+  font-size: 1.1rem;
   line-height: 1.4;
   text-align: center;
 }
@@ -342,7 +342,8 @@ button:not(#rollBtn):hover {
   margin-top: 12px;
   text-align: center;
   line-height: 1.35;
-  font-size: 0.95rem;
+  font-family: "Franklin Gothic Book", sans-serif;
+  font-size: 1.1rem;
   color: var(--accent);
   display: block;
   /* explicitly show it by default */
@@ -646,6 +647,7 @@ button:not(#rollBtn):hover {
 }
 
 .collateral-label {
+  font-family: "Franklin Gothic Book", sans-serif;
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--accent);
@@ -653,13 +655,15 @@ button:not(#rollBtn):hover {
 }
 
 .user-balance {
-  font-size: 1.2rem;
+  font-family: "Franklin Gothic Book", sans-serif;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--accent);
   margin-bottom: 16px;
 }
 
 .collateral-roll-label {
+  font-family: "Franklin Gothic Book", sans-serif;
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--accent);
@@ -1259,7 +1263,7 @@ button:not(#rollBtn):hover {
   }
 
   .collateral-label {
-    font-size: 1rem;
+    font-size: 1.1rem;
     margin-bottom: 2px;
   }
 
@@ -1269,7 +1273,7 @@ button:not(#rollBtn):hover {
   }
 
   .collateral-roll-label {
-    font-size: 1rem;
+    font-size: 1.1rem;
     margin-top: 0;
     margin-bottom: 6px;
   }
