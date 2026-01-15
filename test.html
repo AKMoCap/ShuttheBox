@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Shut the Box - TEST PAGE</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Test controls styling */
+    .test-controls {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(255, 0, 0, 0.9);
+      border: 3px solid #ff0;
+      border-radius: 10px;
+      padding: 15px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .test-controls h3 {
+      margin: 0 0 10px 0;
+      color: #ff0;
+      font-size: 14px;
+      text-align: center;
+    }
+    .test-btn {
+      padding: 12px 20px;
+      font-size: 14px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .test-btn:hover {
+      transform: scale(1.05);
+    }
+    .test-btn.win {
+      background: #10b981;
+      color: white;
+    }
+    .test-btn.loss {
+      background: #ef4444;
+      color: white;
+    }
+    .test-warning {
+      background: #ff0;
+      color: #000;
+      padding: 5px;
+      font-size: 11px;
+      text-align: center;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- TEST CONTROLS -->
+  <div class="test-controls">
+    <h3>TEST MODE</h3>
+    <button class="test-btn win" onclick="window.testTriggerWin()">Trigger WIN</button>
+    <button class="test-btn loss" onclick="window.testTriggerLoss()">Trigger LOSS</button>
+    <div class="test-warning">For testing only!</div>
+  </div>
+
+  <div class="header-container">
+    <h1>SHUT THE BOX</h1>
+    <div class="play-mode-buttons">
+      <button id="freePlayBtn" class="mode-btn active">Free Play</button>
+      <div class="perpplay-wrapper">
+        <button id="perpPlayBtn" class="mode-btn">PerpPlay - Connect Wallet</button>
+        <div id="signatureHint" class="wallet-hint">2 one-time signatures</div>
+        <div id="walletAddress" class="wallet-hint" style="display: none;"></div>
+      </div>
+      <button id="disconnectBtn" class="mode-btn disconnect-btn" style="display: none;">Disconnect</button>
+    </div>
+  </div>
+
+  <!-- GAME + SIDEBAR FLEX -->
+  <div class="game-container">
+    <!-- BOARD WRAP: canvas + dice result + roll button -->
+    <div id="boardWrap">
+      <canvas id="board" width="900" height="660"></canvas>
+      <div id="diceResult"></div>
+      <button id="rollBtn" class="primary">ROLL</button>
+
+      <!-- Position table for PerpPlay mode -->
+      <div id="positionTableContainer" class="position-table-container" style="display: none;">
+        <div class="position-table-header">
+          <span>Open Positions</span>
+          <button id="endGameBtn" class="end-game-btn">End Game</button>
+        </div>
+        <table id="positionTable" class="position-table">
+          <thead>
+            <tr>
+              <th>Token</th>
+              <th>Side</th>
+              <th>Lev</th>
+              <th>Collateral</th>
+              <th>Entry</th>
+              <th>Mark</th>
+              <th>P&L</th>
+            </tr>
+          </thead>
+          <tbody id="positionTableBody">
+          </tbody>
+          <tfoot id="positionTableFooter" style="display: none;">
+            <tr>
+              <td colspan="6" class="total-label">Total P&L:</td>
+              <td id="totalPnl" class="total-pnl">$0.00</td>
+            </tr>
+          </tfoot>
+        </table>
+        <div id="noPositionsMsg" class="no-positions-msg">No open positions</div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: odds, collateral selector, then stats -->
+    <div class="right-container">
+      <div id="immediateOddsDisplay">
+        <div class="odds-label">Odds to Survive:</div>
+        <div class="odds-value"><span id="immediateOdds">…</span></div>
+      </div>
+
+      <!-- Collateral selector - only shown in PerpPlay mode -->
+      <div id="collateralSection" class="collateral-section" style="display: none;">
+        <div class="collateral-label">Perp Collateral:</div>
+        <div id="userBalanceDisplay" class="user-balance">$0.00</div>
+        <div class="collateral-roll-label">Collateral Per Roll:</div>
+        <div class="collateral-buttons">
+          <button class="collateral-btn active" data-amount="10">$10</button>
+          <button class="collateral-btn" data-amount="100">$100</button>
+          <button class="collateral-btn" data-amount="500">$500</button>
+          <button class="collateral-btn" data-amount="1000">$1,000</button>
+        </div>
+      </div>
+
+      <!-- Desktop-only controls cheat-sheet -->
+      <div id="controlsBox" class="controls-box">
+        <strong>Keyboard Controls</strong><br>
+        Enter – Roll<br>
+        Arrows – Select Cards<br>
+        Spacebar – Flip/Unflip<br>
+        Ctrl + R – Restart
+      </div>
+    </div>
+  </div>
+
+  <!-- bottom controls -->
+  <div id="scoreBar">Remaining total: <span id="remaining">78</span></div>
+  <div id="controls">
+    <label><input type="radio" name="diceMode" value="1"> 1 Die</label>
+    <label><input type="radio" name="diceMode" value="2" checked> 2 Dice</label>
+  </div>
+  <button id="restartBtn">Restart Game</button>
+  <button id="soundToggle">🔇 Sound</button>
+
+  <!-- New instructions box -->
+  <div id="instructions">
+    <strong>Instructions:</strong>
+    <p>
+      The goal of the game is to "shut the box" by rolling dice to turn over every card.
+      For example, if you roll a 7, it is your choice to turn over the 7 card, or any combination of cards that adds to
+      7.
+      If you are down to single digit cards, you have the choice to roll just 1 die.
+    </p>
+    <p>Good luck!</p>
+  </div>
+
+  <!-- Stats button -->
+  <button id="statsBtn" class="stats-btn">Stats</button>
+
+  <!-- Stats Modal -->
+  <div id="statsModal" class="stats-modal" style="display: none;">
+    <div class="stats-modal-content">
+      <button id="closeStatsModal" class="close-stats-modal">&times;</button>
+
+      <!-- Free Play Stats -->
+      <div class="stats-section-box">
+        <h3>Free Play Stats</h3>
+        <table class="stats-table">
+          <tr>
+            <td>Total Players</td>
+            <td><span id="fpTotalPlayers">0</span></td>
+          </tr>
+          <tr>
+            <td>Total Wins</td>
+            <td><span id="fpTotalWins">0</span></td>
+          </tr>
+          <tr>
+            <td>Total Losses</td>
+            <td><span id="fpTotalLosses">0</span></td>
+          </tr>
+          <tr class="your-stats-row">
+            <td>Your Wins</td>
+            <td><span id="fpYourWins">0</span></td>
+          </tr>
+          <tr class="your-stats-row">
+            <td>Your Losses</td>
+            <td><span id="fpYourLosses">0</span></td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- PerpPlay Stats -->
+      <div class="stats-section-box">
+        <h3>PerpPlay Stats</h3>
+        <table class="stats-table">
+          <tr>
+            <td>Total Wallets Played</td>
+            <td><span id="ppTotalWallets">0</span></td>
+          </tr>
+          <tr>
+            <td>Total Wins</td>
+            <td><span id="ppTotalWins">0</span></td>
+          </tr>
+          <tr>
+            <td>Total Losses</td>
+            <td><span id="ppTotalLosses">0</span></td>
+          </tr>
+          <tr class="your-stats-row">
+            <td>Your Wins</td>
+            <td><span id="ppYourWins">0</span></td>
+          </tr>
+          <tr class="your-stats-row">
+            <td>Your Losses</td>
+            <td><span id="ppYourLosses">0</span></td>
+          </tr>
+          <tr class="your-stats-row">
+            <td>Your Volume</td>
+            <td><span id="ppYourVolume">$0.00</span></td>
+          </tr>
+          <tr class="your-stats-row">
+            <td>Your P&L</td>
+            <td><span id="ppYourPnl">$0.00</span></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trade toast notification for PerpPlay mode -->
+  <div id="tradeToast" class="trade-toast" style="display: none;">
+    <span id="tradeToastText">Opening BTC 20x LONG with $10...</span>
+  </div>
+
+  <!-- Closing positions overlay -->
+  <div id="closingOverlay" class="closing-overlay" style="display: none;">
+    <div class="closing-content">
+      <div id="closingTitle">Closing Positions...</div>
+      <div id="closingProgress"></div>
+    </div>
+  </div>
+
+  <!-- End Game Position Selection Modal -->
+  <div id="endGameModal" class="end-game-modal" style="display: none;">
+    <div class="end-game-modal-content">
+      <h2 id="endGameTitle">Game Over!</h2>
+      <p id="endGameSubtitle">Choose which positions to close:</p>
+      <div id="endGamePositionsList" class="end-game-positions-list">
+        <!-- Positions will be populated dynamically -->
+      </div>
+      <div class="end-game-totals">
+        <span>Total P&L:</span>
+        <span id="endGameTotalPnl">$0.00</span>
+      </div>
+      <div class="end-game-buttons">
+        <button id="closeAllPositionsBtn" class="end-game-btn close-all">Close All & End Game</button>
+        <button id="keepSelectedBtn" class="end-game-btn keep-selected">Keep Unchecked & New Game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wallet connection modal -->
+  <div id="walletModal" class="wallet-modal" style="display: none;">
+    <div class="wallet-modal-content">
+      <h2>Connect Wallet</h2>
+      <p>Connect your wallet to play PerpPlay mode on Hyperliquid</p>
+      <div class="wallet-options">
+        <button id="connectMetamask" class="wallet-option">
+          <span class="wallet-icon">🦊</span>
+          <span>MetaMask</span>
+        </button>
+        <button id="connectRabby" class="wallet-option">
+          <span class="wallet-icon">🐰</span>
+          <span>Rabby</span>
+        </button>
+      </div>
+      <button id="closeWalletModal" class="close-modal">Cancel</button>
+    </div>
+  </div>
+
+  <!-- firebase & game scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script src="https://unpkg.com/@msgpack/msgpack@3.0.0-beta2/dist.es5+umd/msgpack.min.js"></script>
+  <script src="firebase.js"></script>
+  <script src="hyperliquid.js"></script>
+  <script src="stb.js"></script>
+</body>
+
+</html>

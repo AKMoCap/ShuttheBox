@@ -1555,4 +1555,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* ───────── initialise ───────── */
   startGame();
+
+  // Expose test functions for test page
+  window.testTriggerWin = () => stopGame(true);
+  window.testTriggerLoss = () => stopGame(false);
 });
