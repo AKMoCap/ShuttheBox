@@ -1328,24 +1328,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function shareCard(rolls) {
-    const cvs = makeShareCard(rolls);
-
-    /* ── A. copy to clipboard (same as before) ── */
-    cvs.toBlob(async (blob) => {
-      const item = new ClipboardItem({ "image/png": blob });
-      try {
-        await navigator.clipboard.write([item]);
-      } catch {
-        /* ignore if permission denied */
-      }
-    }, "image/png");
-
-    /* ── B. also show it on-screen ── */
+    /* ── Show win popup with NFT image ── */
     const overlay = document.createElement("div");
     Object.assign(overlay.style, {
       position: "fixed",
       inset: 0,
-      background: "rgba(0,0,0,.65)",
+      background: "rgba(0,0,0,.85)",
       display: "flex",
       flexDirection: "column",
       justifyContent: "center",
@@ -1356,24 +1344,29 @@ document.addEventListener("DOMContentLoaded", () => {
       padding: "20px",
     });
 
+    // NFT image
     const img = new Image();
-    img.src = cvs.toDataURL("image/png");
-    img.style.maxWidth = "90%";
-    img.style.boxShadow = "0 0 18px #000, 0 0 8px #3AB4EF";
+    img.src = "STB_NFT.png";
+    Object.assign(img.style, {
+      maxWidth: "320px",
+      maxHeight: "50vh",
+      borderRadius: "12px",
+      boxShadow: "0 0 30px rgba(58, 180, 239, 0.5), 0 0 60px rgba(58, 180, 239, 0.3)",
+    });
     overlay.appendChild(img);
 
     // NFT reward message
     const nftMessage = document.createElement("div");
     Object.assign(nftMessage.style, {
       color: "#3AB4EF",
-      fontSize: "16px",
+      fontSize: "18px",
       fontFamily: "Franklin Gothic Book, sans-serif",
       textAlign: "center",
       maxWidth: "400px",
       lineHeight: "1.5",
       textShadow: "0 0 10px rgba(0,0,0,0.8)",
     });
-    nftMessage.textContent = "All winners will receive an NFT to their winning wallet on the HyperEVM - look out for future rewards!";
+    nftMessage.textContent = "All winners will receive this NFT to their winning wallet on the HyperEVM!";
     overlay.appendChild(nftMessage);
 
     // Click to dismiss hint
