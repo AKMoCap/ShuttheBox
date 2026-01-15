@@ -255,17 +255,14 @@ window.HyperliquidManager = (() => {
       const newWalletAddress = accounts[0].toLowerCase();
       console.log('Wallet connected:', newWalletAddress);
 
-      // Clear any existing state from previous wallet to ensure clean start
-      const existingData = loadWalletData();
-      if (existingData && existingData.walletAddress?.toLowerCase() !== newWalletAddress) {
-        console.log('Different wallet detected, clearing previous wallet data...');
-        clearWalletData();
-        // Reset internal state
-        agentWallet = null;
-        agentPrivateKey = null;
-        isConnected = false;
-        gamePositions = [];
-      }
+      // ALWAYS clear existing state when explicitly connecting
+      // This ensures a fresh start whether it's the same or different wallet
+      console.log('Clearing any existing wallet state for fresh connection...');
+      clearWalletData();
+      agentWallet = null;
+      agentPrivateKey = null;
+      isConnected = false;
+      gamePositions = [];
 
       walletAddress = newWalletAddress;
 
