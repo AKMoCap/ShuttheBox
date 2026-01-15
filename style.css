@@ -38,22 +38,89 @@ h1 {
   position: relative;
   /* pull it out of the full‑width flow and shrink‑wrap it around the board */
   width: max-content;
-  margin: 20px auto 0;
+  margin: 10px auto 0;
   /* center under the H1s */
 }
 
-/* ───────── Sidebar (odds + stats) ───────── */
+/* ───────── Left Sidebar (remaining, dice, odds) - Desktop Only ───────── */
+.left-container {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  margin-right: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  min-width: 160px;
+}
+
+.score-bar-desktop {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-align: center;
+}
+
+.controls-desktop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 1.1rem;
+  color: var(--accent);
+}
+
+.controls-desktop label {
+  cursor: pointer;
+}
+
+.odds-display-left {
+  text-align: center;
+}
+
+/* Hide left container on mobile */
+@media (max-width: 1200px) {
+  .left-container {
+    display: none;
+  }
+}
+
+/* ───────── Right Sidebar (collateral, controls) ───────── */
 .right-container {
   position: absolute;
   top: 0;
   left: 100%;
-  margin-left: 40px;
+  margin-left: 30px;
   /* gap between board and sidebar */
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 20px;
-  /* space between odds & stats */
+  /* space between elements */
+}
+
+/* Hide odds on right side on desktop (show on mobile) */
+@media (min-width: 1201px) {
+  .odds-display-right {
+    display: none;
+  }
+}
+
+/* ───────── Mobile-only elements ───────── */
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 1200px) {
+  .mobile-only {
+    display: flex;
+    justify-content: center;
+  }
+
+  #scoreBar.mobile-only {
+    display: block;
+    text-align: center;
+  }
 }
 
 /* ───────── Board + Roll Button ───────── */
@@ -348,6 +415,11 @@ button:not(#rollBtn):hover {
 
 .disconnect-btn:hover {
   background: rgba(239, 68, 68, 0.2);
+}
+
+/* Sound button in header */
+.sound-btn {
+  margin-left: auto;
 }
 
 /* ───────── Wallet Address Display ───────── */

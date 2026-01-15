@@ -723,12 +723,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const cvs = document.getElementById("board");
   const ctx = cvs.getContext("2d");
   const remainingEl = document.getElementById("remaining");
+  const remainingDesktopEl = document.getElementById("remainingDesktop");
   const diceResEl = document.getElementById("diceResult");
   const rollBtn = document.getElementById("rollBtn");
   const restartBtn = document.getElementById("restartBtn");
   const soundToggle = document.getElementById("soundToggle");
 
   const oddsSpan = document.getElementById("immediateOdds");
+  const oddsSpanLeft = document.getElementById("immediateOddsLeft");
 
   /* one-time browser id for free play */
   let playerId = localStorage.getItem("playerId");
@@ -988,9 +990,11 @@ document.addEventListener("DOMContentLoaded", () => {
       (a, b) => a + b,
       0,
     );
-  const updateRemaining = () =>
-    (remainingEl.textContent =
-      TOTAL_START - [...flipped].reduce((s, v) => s + v, 0));
+  const updateRemaining = () => {
+    const remaining = TOTAL_START - [...flipped].reduce((s, v) => s + v, 0);
+    remainingEl.textContent = remaining;
+    if (remainingDesktopEl) remainingDesktopEl.textContent = remaining;
+  };
 
   function legalCardSet(total) {
     const pool = [...Array(13).keys()].slice(1).filter((v) => !flipped.has(v));
@@ -1010,15 +1014,19 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateImmediateOdds() {
-    if (!oddsSpan) return;
-    const mode = +document.querySelector('input[name="diceMode"]:checked')
-      .value;
+    // Get mode from mobile or desktop radio buttons
+    const mobileRadio = document.querySelector('input[name="diceMode"]:checked');
+    const desktopRadio = document.querySelector('input[name="diceModeDesktop"]:checked');
+    const mode = +(mobileRadio?.value || desktopRadio?.value || 2);
+
     const dist = mode === 1 ? dist1 : dist2;
     let odds = 0;
     for (const { r, p } of dist) {
       if (legalCardSet(r).size) odds += p;
     }
-    oddsSpan.textContent = (odds * 100).toFixed(1) + "%";
+    const oddsText = (odds * 100).toFixed(1) + "%";
+    if (oddsSpan) oddsSpan.textContent = oddsText;
+    if (oddsSpanLeft) oddsSpanLeft.textContent = oddsText;
   }
 
   /* ───────── drawing ───────── */
@@ -1135,8 +1143,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function performRoll() {
     newlyFlipped.clear();
     rollCount++; // 📈 count this roll
-    const mode = +document.querySelector('input[name="diceMode"]:checked')
-      .value;
+    // Get mode from mobile or desktop radio buttons
+    const mobileRadio = document.querySelector('input[name="diceMode"]:checked');
+    const desktopRadio = document.querySelector('input[name="diceModeDesktop"]:checked');
+    const mode = +(mobileRadio?.value || desktopRadio?.value || 2);
     rollAnimation(mode, () => {
       diceTotal = rollDice(mode);
       if (diceTotal === 12 && soundEnabled) {
@@ -1271,9 +1281,23 @@ document.addEventListener("DOMContentLoaded", () => {
     soundToggle.textContent = soundEnabled ? "🔊 Sound" : "🔇 Sound";
   });
   restartBtn.addEventListener("click", startGame);
+
+  // Sync mobile and desktop dice mode radio buttons
+  function syncDiceMode(sourceName, targetName) {
+    const sourceRadio = document.querySelector(`input[name="${sourceName}"]:checked`);
+    if (sourceRadio) {
+      const targetRadio = document.querySelector(`input[name="${targetName}"][value="${sourceRadio.value}"]`);
+      if (targetRadio) targetRadio.checked = true;
+    }
+    updateImmediateOdds();
+  }
+
   document
     .querySelectorAll('input[name="diceMode"]')
-    .forEach((r) => r.addEventListener("change", updateImmediateOdds));
+    .forEach((r) => r.addEventListener("change", () => syncDiceMode("diceMode", "diceModeDesktop")));
+  document
+    .querySelectorAll('input[name="diceModeDesktop"]')
+    .forEach((r) => r.addEventListener("change", () => syncDiceMode("diceModeDesktop", "diceMode")));
 
   /* ───────── game-flow helpers ───────── */
   function checkWinLose() {
@@ -1545,6 +1569,7 @@ document.addEventListener("DOMContentLoaded", () => {
     diceTotal = 0;
     cursor = 1;
     remainingEl.textContent = TOTAL_START;
+    if (remainingDesktopEl) remainingDesktopEl.textContent = TOTAL_START;
     diceResEl.textContent = "";
     drawBoard();
     nelly.currentTime = 0; // allow Nelly to play again
