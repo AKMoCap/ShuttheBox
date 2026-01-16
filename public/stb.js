@@ -1787,6 +1787,31 @@ document.addEventListener("DOMContentLoaded", () => {
   // Load leaderboard on page load
   loadLeaderboard();
 
+  // Show welcome modal for first-time users
+  const welcomeModal = document.getElementById('welcomeModal');
+  const closeWelcomeModal = document.getElementById('closeWelcomeModal');
+
+  if (welcomeModal && !localStorage.getItem('hasSeenWelcome')) {
+    welcomeModal.style.display = 'flex';
+  }
+
+  if (closeWelcomeModal) {
+    closeWelcomeModal.addEventListener('click', () => {
+      welcomeModal.style.display = 'none';
+      localStorage.setItem('hasSeenWelcome', 'true');
+    });
+  }
+
+  // Close welcome modal when clicking outside
+  if (welcomeModal) {
+    welcomeModal.addEventListener('click', (e) => {
+      if (e.target === welcomeModal) {
+        welcomeModal.style.display = 'none';
+        localStorage.setItem('hasSeenWelcome', 'true');
+      }
+    });
+  }
+
   // Expose test functions for test page
   window.testTriggerWin = () => stopGame(true);
   window.testTriggerLoss = () => stopGame(false);

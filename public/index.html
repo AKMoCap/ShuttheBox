@@ -117,16 +117,19 @@
   <!-- New instructions box -->
   <div id="instructions">
     <strong>Instructions:</strong>
-    <p>
+    <p class="spaced">
       "Shut the Box" by rolling dice and knocking out each card on the table. For example, if you roll a 7, it is your choice to turn over the 7 card, or the 4+3 cards, or any combination that adds to the number rolled. If you are down to single digit cards, you have the choice to roll just 1 die. Win the game by knocking out every card!
     </p>
-    <p>
+    <p class="spaced">
       Free Play mode lets you play for fun or practice to understand the game. No money involved.
     </p>
-    <p>
-      To play PerpPlay mode, you must have a MetaMask or Rabby blockchain wallet, and a USDC balance on Hyperliquid. Each turn will automatically open a random long or short perp position on a randomly-selected token. At the end of the game, you will have the option to close or keep positions. If you Shut the Box, you will receive an NFT to the connected wallet, which might entitle you to future rewards...
+    <p class="spaced">
+      To play PerpPlay mode, you must have a MetaMask or Rabby blockchain wallet, and a USDC balance on Hyperliquid. Each turn will automatically open a random long or short perp position on a randomly-selected token. At the end of the game, you will have the option to close or keep positions.
     </p>
-    <p>
+    <p class="spaced">
+      If you Shut the Box, you will receive an NFT to the connected wallet, which might entitle you to future rewards...
+    </p>
+    <p class="spaced">
       Oh, and yes, Points for playing matter....
     </p>
     <p>Good luck!</p>
@@ -255,6 +258,32 @@
         <button id="closeAllPositionsBtn" class="end-game-btn close-all">Close All & End Game</button>
         <button id="keepSelectedBtn" class="end-game-btn keep-selected">Keep Unchecked & New Game</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Welcome/Instructions modal for first-time users -->
+  <div id="welcomeModal" class="welcome-modal" style="display: none;">
+    <div class="welcome-modal-content">
+      <h2>Welcome to Shut the Box!</h2>
+      <div class="welcome-instructions">
+        <p class="spaced">
+          "Shut the Box" by rolling dice and knocking out each card on the table. For example, if you roll a 7, it is your choice to turn over the 7 card, or the 4+3 cards, or any combination that adds to the number rolled. If you are down to single digit cards, you have the choice to roll just 1 die. Win the game by knocking out every card!
+        </p>
+        <p class="spaced">
+          Free Play mode lets you play for fun or practice to understand the game. No money involved.
+        </p>
+        <p class="spaced">
+          To play PerpPlay mode, you must have a MetaMask or Rabby blockchain wallet, and a USDC balance on Hyperliquid. Each turn will automatically open a random long or short perp position on a randomly-selected token. At the end of the game, you will have the option to close or keep positions.
+        </p>
+        <p class="spaced">
+          If you Shut the Box, you will receive an NFT to the connected wallet, which might entitle you to future rewards...
+        </p>
+        <p class="spaced">
+          Oh, and yes, Points for playing matter....
+        </p>
+        <p>Good luck!</p>
+      </div>
+      <button id="closeWelcomeModal" class="welcome-btn">Let's Play!</button>
     </div>
   </div>
 
